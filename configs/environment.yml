@@ -1,0 +1,24 @@
+name: delle
+channels:
+  - defaults
+  - conda-forge
+  - salilab
+dependencies:
+  - python=3.8
+  - dssp
+  - pip
+  - pip:
+    - torch
+    - transformers
+    - einops
+    - tqdm
+    - wandb
+    - rotary-embedding-torch
+    - biopython
+    - scipy
+    - torchtyping
+    - dm-tree
+    - matplotlib
+    - seaborn
+    - black
+    - ipython
