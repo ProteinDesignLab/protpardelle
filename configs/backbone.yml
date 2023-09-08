@@ -1,0 +1,69 @@
+train:
+    home_dir: ''
+    seed: 0
+    checkpoint: ['', 0]
+    batch_size: 32
+    max_epochs: 10000
+    eval_freq: 7200  # seconds
+    checkpoint_freq: 50
+    checkpoints: []
+    lr:  0.0001
+    warmup_steps: 1000
+    decay_steps: 2_000_000
+    clip_grad_norm: True
+    grad_clip_val: 1.0
+    weight_decay: 0.0
+    n_eval_samples: 8
+    sample_length_range: [50, 512]
+    sc_num_seqs: 4
+    eval_loss_t: [0.1, 0.3, 0.5, 0.7, 0.9]
+    self_cond_train_prob: 0.9
+    subsample_eval_set: 0.05
+    crop_conditional: False
+
+data:
+    pdb_path: 'datasets/ingraham_cath_dataset'
+    fixed_size: 384
+    n_aatype_tokens: 21
+    se3_data_augment: True
+    sigma_data: 10.0
+
+diffusion:
+    training:
+        function: 'lognormal'
+        psigma_mean: -1.2
+        psigma_std: 1.2
+    sampling:
+        function: 'uniform'
+        s_min: 0.001
+        s_max: 80
+
+model:
+    task: 'backbone'  # 'backbone', 'allatom', 'seqdes', 'codesign'
+    pretrained_modules: []  # 'struct_model', 'mpnn_model'
+    struct_model_checkpoint: ''
+    mpnn_model_checkpoint: ''
+    crop_conditional: False
+    dummy_fill_masked_atoms: False
+    struct_model:
+        arch: 'uvit'
+        n_atoms: 37  # keep same shapes, just zero out sidechains
+        n_channel: 256
+        noise_cond_mult: 4
+        uvit:
+            patch_size: 1
+            n_layers: 6
+            n_heads: 8
+            dim_head: 32
+            n_filt_per_layer: []
+            n_blocks_per_layer: 2
+            cat_pwd_to_conv: False
+            conv_skip_connection: False
+            position_embedding_type: 'absolute_residx'
+    mpnn_model:
+        use_self_conditioning: True
+        label_smoothing: 0.1
+        n_channel: 128
+        n_layers: 3
+        n_neighbors: 32
+        noise_cond_mult: 4
