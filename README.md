@@ -4,7 +4,7 @@ Code for the paper: [An all-atom protein generative model](https://www.biorxiv.o
 
 The code is under active development and we welcome contributions, feature requests, issues, corrections, and any questions! Where we have used or adapted code from others we have tried to give proper attribution, but please let us know if anything should be corrected.
 
-![twitter_movie3](https://github.com/ProteinDesignLab/protpardelle/assets/16140426/05693f5a-866d-42e1-b772-06afdc5166f4)
+![twitter_movie3](https://github.com/ProteinDesignLab/protpardelle/assets/16140426/98ed76c4-114b-4fa7-ae8a-e661082c8cdf)
 
 ## Environment and setup
 
