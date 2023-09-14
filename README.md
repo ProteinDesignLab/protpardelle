@@ -53,7 +53,7 @@ The entry point for sampling is `draw_samples.py`. There are a number of argumen
 
 To draw 8 samples per length for lengths in `range(70, 150, 5)` from the backbone-only model, with 100 denoising steps, run:
 
-`python draw_samples.py --type backbone --param n_steps --paramval 100 --minlen 70 --maxlen 150 --steplen 5 --perlen 8`
+`python draw_samples.py --type backbone --minlen 70 --maxlen 150 --steplen 5 --perlen 8`
 
 We have also added the ability to provide an input PDB file and a list of (zero-indexed) indices to condition on from the PDB file. Note also that current models are single-chain only, so multi-chain PDBs will be treated as single chains (we intend to release multi-chain models in a later update). We can expect it to do better or worse depending on the problem (better on easier problems such as inpainting, worse on difficult problems such as discontiguous scaffolding). Use this command to resample the first 25 and 71st to 80th residues of `my_pdb.pdb`.
 
