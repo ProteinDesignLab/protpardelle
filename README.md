@@ -4,9 +4,14 @@ Code for the paper: [An all-atom protein generative model](https://www.biorxiv.o
 
 The code is under active development and we welcome contributions, feature requests, issues, corrections, and any questions! Where we have used or adapted code from others we have tried to give proper attribution, but please let us know if anything should be corrected.
 
+
+![twitter_movie3](https://github.com/ProteinDesignLab/protpardelle/assets/16140426/98ed76c4-114b-4fa7-ae8a-e661082c8cdf)
+
+
 ## Environment and setup
 
 To set up the conda environment, run `conda env create -f configs/environment.yml` then `conda activate delle`. You will also need to clone the [ProteinMPNN repository](https://github.com/dauparas/ProteinMPNN) to the same directory that contains the `protpardelle/` repository. You may also need to set the `home_dir` variable in the configs you use to the path to the directory containing the `protpardelle/` directory.
+
 
 ## Use in WebApp and Pymol
 
@@ -58,22 +63,21 @@ To use the backbone only model use:
 protpardelle_uncond 50,60,5,1,backbone
 ```
 
-
 ## Inference
 
-The entry point for sampling is `draw_samples.py`. There are a number of arguments which can be passed to control the model checkpoints, the sampling configuration, and lengths of the proteins sampled. Model weights are provided for both the backbone-only and all-atom versions of Protpardelle. Both of these are trained unconditionally; we will release conditional models in a later update. Some examples:
+The entry point for sampling is `draw_samples.py`, which is a convenience wrapper around `sampling.py` and the `model.sample()` function. There are a number of arguments which can be passed to control the model checkpoints, the sampling configuration, and lengths of the proteins sampled. Model weights are provided for both the backbone-only and all-atom versions of Protpardelle. Both of these are trained unconditionally; we will release conditional models in a later update. Below are some examples of how to draw samples.
 
-To draw 8 samples per length for lengths in `range(70, 150, 5)` from the backbone-only model, with 100 denoising steps, run:
+The default command used to draw all-atom samples (for example, for 2 proteins at each length in `range(80, 100, 5)`):
 
-```
-python draw_samples.py --type backbone --minlen 70 --maxlen 150 --steplen 5 --perlen 8
-```
+`python draw_samples.py --type allatom --minlen 80 --maxlen 100 --steplen 5 --perlen 2`
+
+To draw 8 samples per length for lengths in `range(70, 150, 5)` from the backbone-only model, with 100 denoising steps instead of the default, run this command. (This is illustrative; I would not expect to get quality samples with 100 denoising steps.)
+
+`python draw_samples.py --type backbone --param n_steps --paramval 100 --minlen 70 --maxlen 150 --steplen 5 --perlen 8`
 
 We have also added the ability to provide an input PDB file and a list of (zero-indexed) indices to condition on from the PDB file. Note also that current models are single-chain only, so multi-chain PDBs will be treated as single chains (we intend to release multi-chain models in a later update). We can expect it to do better or worse depending on the problem (better on easier problems such as inpainting, worse on difficult problems such as discontiguous scaffolding). Use this command to resample the first 25 and 71st to 80th residues of `my_pdb.pdb`.
 
-```
-python draw_samples.py --input_pdb my_pdb.pdb --resample_idxs 0-25,70-80
-```
+`python draw_samples.py --input_pdb my_pdb.pdb --resample_idxs 0-25,70-80`
 
 For more control over the sampling process, including tweaking the sampling hyperparameters and more specific methods of conditioning, you can directly interface with the `model.sample()` function; we have provided examples of how to configure and run these commands in `sampling.py`.
 
