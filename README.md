@@ -10,7 +10,7 @@ To set up the conda environment, run `conda env create -f configs/environment.ym
 
 ## Use in WebApp and Pymol
 
-You can use protpardelle directly in a convenien HuggingFace Webapp powered by Gradio. 
+You can use protpardelle directly in a convenient HuggingFace Webapp powered by Gradio. 
 
 [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md-dark.svg)](https://huggingface.co/spaces/ProteinDesignLab/protpardelle)
 
