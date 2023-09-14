@@ -13,7 +13,8 @@ To set up the conda environment, run `conda env create -f configs/environment.ym
 You can use protpardelle directly in a convenien HuggingFace Webapp powered by Gradio. 
 
 [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md-dark.svg)](https://huggingface.co/spaces/ProteinDesignLab/protpardelle)
-![HuggingFace Webapp](webapp.png)
+
+![HuggingFace Webapp](https://i.imgur.com/JZTMPb1.png)
 
 Alternatively you can directly design proteins within Pymol. 
 For this download the `protpardelle_pymol.py` file to your computer. 
@@ -26,25 +27,36 @@ cd path/to/dir
 ```
 then load the file. If launching for the first time this will install `gradio_client` in the python installation that Pymol uses. This might take a few seconds and the Pymol window will appear frozen.
 
-`load protpardelle_pymol.py`
+```
+load protpardelle_pymol.py
+```
 
 **Conditional Design**
 
 To run conditional design first load a structure e.g
-`fetch 1pga`
+```
+fetch 1pga
+```
+
 then select some residues (and optionally name the selection).
 To generate 5 samples resampling the residues in a selection named `sele` run the following command in the Pymol console:
-`protpardelle 1pga, sele, 5`
+```
+protpardelle 1pga, sele, 5
+```
 
 **Unconditional Design** 
 
 To sample proteins between length 50 and 60 with step size 5 and generate 1 sample per sampled length use the following command:
 
-`protpardelle_uncond 50, 60, 5, 1`
+```
+protpardelle_uncond 50, 60, 5, 1
+```
 
 To use the backbone only model use:
 
-`protpardelle_uncond 50,60,5,1,backbone`
+```
+protpardelle_uncond 50,60,5,1,backbone
+```
 
 
 ## Inference
@@ -53,11 +65,15 @@ The entry point for sampling is `draw_samples.py`. There are a number of argumen
 
 To draw 8 samples per length for lengths in `range(70, 150, 5)` from the backbone-only model, with 100 denoising steps, run:
 
-`python draw_samples.py --type backbone --minlen 70 --maxlen 150 --steplen 5 --perlen 8`
+```
+python draw_samples.py --type backbone --minlen 70 --maxlen 150 --steplen 5 --perlen 8
+```
 
 We have also added the ability to provide an input PDB file and a list of (zero-indexed) indices to condition on from the PDB file. Note also that current models are single-chain only, so multi-chain PDBs will be treated as single chains (we intend to release multi-chain models in a later update). We can expect it to do better or worse depending on the problem (better on easier problems such as inpainting, worse on difficult problems such as discontiguous scaffolding). Use this command to resample the first 25 and 71st to 80th residues of `my_pdb.pdb`.
 
-`python draw_samples.py --input_pdb my_pdb.pdb --resample_idxs 0-25,70-80`
+```
+python draw_samples.py --input_pdb my_pdb.pdb --resample_idxs 0-25,70-80
+```
 
 For more control over the sampling process, including tweaking the sampling hyperparameters and more specific methods of conditioning, you can directly interface with the `model.sample()` function; we have provided examples of how to configure and run these commands in `sampling.py`.
 
