@@ -4,11 +4,64 @@ Code for the paper: [An all-atom protein generative model](https://www.biorxiv.o
 
 The code is under active development and we welcome contributions, feature requests, issues, corrections, and any questions! Where we have used or adapted code from others we have tried to give proper attribution, but please let us know if anything should be corrected.
 
+
 ![twitter_movie3](https://github.com/ProteinDesignLab/protpardelle/assets/16140426/98ed76c4-114b-4fa7-ae8a-e661082c8cdf)
+
 
 ## Environment and setup
 
 To set up the conda environment, run `conda env create -f configs/environment.yml` then `conda activate delle`. You will also need to clone the [ProteinMPNN repository](https://github.com/dauparas/ProteinMPNN) to the same directory that contains the `protpardelle/` repository. You may also need to set the `home_dir` variable in the configs you use to the path to the directory containing the `protpardelle/` directory.
+
+
+## Use in WebApp and Pymol
+
+You can use protpardelle directly in a convenient HuggingFace Webapp powered by Gradio. 
+
+[![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md-dark.svg)](https://huggingface.co/spaces/ProteinDesignLab/protpardelle)
+
+![HuggingFace Webapp](https://i.imgur.com/JZTMPb1.png)
+
+Alternatively you can directly design proteins within Pymol. 
+For this download the `protpardelle_pymol.py` file to your computer. 
+
+Then open Pymol, and navigate to the directory where the file is located. 
+
+```
+pwd (to know which directory you are in)
+cd path/to/dir
+```
+then load the file. If launching for the first time this will install `gradio_client` in the python installation that Pymol uses. This might take a few seconds and the Pymol window will appear frozen.
+
+```
+load protpardelle_pymol.py
+```
+
+**Conditional Design**
+
+To run conditional design first load a structure e.g
+```
+fetch 1pga
+```
+
+then select some residues (and optionally name the selection).
+To generate 5 samples resampling the residues in a selection named `sele` run the following command in the Pymol console:
+```
+protpardelle 1pga, sele, 5
+```
+
+**Unconditional Design** 
+
+To sample proteins between length 50 and 60 with step size 5 and generate 1 sample per sampled length use the following command:
+
+```
+protpardelle_uncond 50, 60, 5, 1
+```
+
+To use the backbone only model use:
+
+```
+protpardelle_uncond 50,60,5,1,backbone
+```
 
 ## Inference
 
