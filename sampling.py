@@ -19,8 +19,8 @@ import diffusion
 
 def default_backbone_sampling_config():
     config = argparse.Namespace(
-        n_steps=500,
-        s_churn=200,
+        n_steps=200,
+        s_churn=40,
         step_scale=1.2,
         sidechain_mode=False,
         noise_schedule=lambda t: diffusion.noise_schedule(t, s_max=80, s_min=0.001),
