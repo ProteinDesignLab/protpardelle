@@ -3,7 +3,7 @@ https://github.com/ProteinDesignLab/protpardelle
 License: MIT
 Author: Alex Chu
 
-Utils for computing evaluation metrics.
+Utils for computing evaluation metrics and scaffolding benchmarks.
 """
 import argparse
 import os
@@ -15,12 +15,14 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer, EsmForProteinFolding
 from torchtyping import TensorType
+from tqdm import tqdm
 
+from core import data
 from core import residue_constants
 from core import utils
 from core import protein_mpnn as mpnn
+import inference
 import modules
-import sampling
 
 
 def mean(x):
@@ -134,8 +136,10 @@ def compute_structure_metric(coords1, coords2, metric="ca_rmsd", atom_mask=None)
     if metric == "ca_rmsd":
         return (aligned_coords1_ca - coords2[:, 1]).pow(2).sum(-1).sqrt().mean()
     elif metric == "tm_score":
+        return _tmscore(aligned_coords1_ca, coords2[:, 1])
+    elif metric == "tm_score_inv":
         tm = _tmscore(aligned_coords1_ca, coords2[:, 1])
-        # TODO: return 1 - tm score for now so sorts work properly
+        # Return 1 - tm score so sorts work properly
         return 1 - tm
     elif metric == "allatom_tm":
         # Align on Ca, compute allatom TM
@@ -312,8 +316,8 @@ def evaluate_backbone_generation(
     tokenizer=None,
     sample_length_range=(50, 512),
 ):
-    sampling_config = sampling.default_backbone_sampling_config()
-    trimmed_coords, seq_mask = sampling.draw_backbone_samples(
+    sampling_config = inference.default_backbone_sampling_config()
+    trimmed_coords, seq_mask = inference.draw_backbone_samples(
         model,
         n_samples=n_samples,
         sample_length_range=sample_length_range,
@@ -345,8 +349,8 @@ def evaluate_allatom_generation(
     model.load_minimpnn()
     model.eval()
 
-    sampling_config = sampling.default_allatom_sampling_config()
-    ret = sampling.draw_allatom_samples(
+    sampling_config = inference.default_allatom_sampling_config()
+    ret = inference.draw_allatom_samples(
         model,
         n_samples=n_samples,
         two_stage_sampling=two_stage_sampling,
@@ -404,3 +408,505 @@ def evaluate_allatom_generation(
         best_idx,
     )
     return aa_metrics_out, aa_aux_out
+
+
+# RFdiffusion supplement p84 (Watson et al)
+RFDIFFUSION_SCAFFOLDING_BENCHMARKS = {
+    "1PRW": {
+        "contig_string": "5-20,A16-35,10-25,A52-71,5-20",
+        "total_length": "60-105",
+        "redesign_sequence": "A16-19,A21,A23,A25,A27-30,A32-35,A52-55,A57,A59,A61,A63-66,A68-71",
+    },
+    "1BCF": {
+        "contig_string": "8-15,A92-99,16-30,A123-130,16-30,A47-54,16-30,A18-25,8-15",
+        "total_length": "96-152",
+        "redesign_sequence": "A19-25,A47-50,A52-53,A92-93,A95-99,A123-126,A128-129",
+    },
+    "1BCF_SITE": {
+        "contig_string": "10-17,A94,25-40,A127-130,20-24,A51-54,16-30,A18,15-22",
+        "total_length": "96-152",
+        "redesign_sequence": "A52-53,A128-129",
+    },
+    "5TPN": {
+        "contig_string": "10-40,A163-181,10-40",
+        "total_length": "50-75",
+        "redesign_sequence": "A163-168,A170-171,A179",
+    },
+    "5IUS": {
+        "contig_string": "0-30,A119-140,15-40,A63-82,0-30",
+        "total_length": "57-142",
+        "redesign_sequence": "A63,A65,A67,A69,A71,A72,A76,A79,A80,A82,A119,A120,A121,A122,A123,A125,A127,A129,A130,A131,A133,A135,A137,A138,A140",
+    },
+    "3IXT": {
+        "contig_string": "10-40,P254-277,10-40",
+        "total_length": "50-75",
+        "redesign_sequence": "P255,P258-259,P262-263,P268,P271-272,P275-276",
+    },
+    "5YUI": {
+        "contig_string": "5-30,A93-97,5-20,A118-120,10-35,A198-200,10-30",
+        "total_length": "50-100",
+        "redesign_sequence": "A93,A95,A97,A118,A120",
+    },
+    "1QJG": {
+        "contig_string": "10-20,A38,15-30,A14,15-30,A99,10-20",
+        "total_length": "53-103",
+        "redesign_sequence": "n/a",
+    },
+    "1QJG_NATIVE": {
+        "contig_string": "10-20,A14,15-30,A38,50-70,A99,25-30",
+        "total_length": "115-135",
+        "redesign_sequence": "n/a",
+    },
+    "5AOU": {
+        "contig_string": "40-60,A1051,20-40,A2083,20-35,A2110,100-140",
+        "total_length": "230-270",
+        "redesign_sequence": "n/a",
+    },
+    "5AOU_QUAD": {
+        "contig_string": "40-60,A1051,20-40,A2083,20-35,A2110,60-80,A2180,40-60",
+        "total_length": "230-270",
+        "redesign_sequence": "n/a",
+    },
+    "7K4V": {
+        "contig_string": "40-50,A44,3-8,A50,70-85,A127,150-200",
+        "total_length": "280-320",
+        "redesign_sequence": "n/a",
+    },
+    "1YCR": {
+        "contig_string": "10-40,B19-27,10-40",
+        "total_length": "40-100",
+        "redesign_sequence": "B20-22,B24-25",
+    },
+    "2KL8": {
+        "contig_string": "A1-7,20,A28-79",
+        "total_length": "79",
+        "redesign_sequence": "n/a",
+    },
+    "7MRX_60": {
+        "contig_string": "0-38,B25-46,0-38",
+        "total_length": "60",
+        "redesign_sequence": "n/a",
+    },
+    "7MRX_85": {
+        "contig_string": "0-63,B25-46,0-63",
+        "total_length": "85",
+        "redesign_sequence": "n/a",
+    },
+    "7MRX_128": {
+        "contig_string": "0-122,B25-46,0-122",
+        "total_length": "128",
+        "redesign_sequence": "n/a",
+    },
+    "4JHW": {
+        "contig_string": "10-25,F196-212,15-30,F63-69,10-25",
+        "total_length": "60-90",
+        "redesign_sequence": "F196,F198,F203,F211-212,F63,F69",
+    },
+    "4ZYP": {
+        "contig_string": "10-40,A422-436,10-40",
+        "total_length": "30-50",
+        "redesign_sequence": "A422-427,A430-431,A433-436",
+    },
+    "5WN9": {
+        "contig_string": "10-40,A170-189,10-40",
+        "total_length": "35-50",
+        "redesign_sequence": "A170-175,A188-189",
+    },
+    "6VW1": {
+        "contig_string": "20-30,A24-42,4-10,A64-82,0-5",
+        "total_length": "62-83",
+        "redesign_sequence": "A25-26,A29-30,A32-34,A36-42,A64-82",
+    },
+    "5TRV_SHORT": {
+        "contig_string": "0-35,A45-65,0-35",
+        "total_length": "56",
+        "redesign_sequence": "n/a",
+    },
+    "5TRV_MED": {
+        "contig_string": "0-65,A45-65,0-65",
+        "total_length": "86",
+        "redesign_sequence": "n/a",
+    },
+    "5TRV_LONG": {
+        "contig_string": "0-95,A45-65,0-95",
+        "total_length": "116",
+        "redesign_sequence": "n/a",
+    },
+    "6E6R_SHORT": {
+        "contig_string": "0-35,A23-35,0-35",
+        "total_length": "48",
+        "redesign_sequence": "n/a",
+    },
+    "6E6R_MED": {
+        "contig_string": "0-65,A23-35,0-65",
+        "total_length": "78",
+        "redesign_sequence": "n/a",
+    },
+    "6E6R_LONG": {
+        "contig_string": "0-95,A23-35,0-95",
+        "total_length": "108",
+        "redesign_sequence": "n/a",
+    },
+    # Indices don't line up with PDB.
+    # "6EXZ_SHORT": {
+    #     "contig_string": "0-35,A28-42,0-35",
+    #     "total_length": "50",
+    #     "redesign_sequence": "n/a",
+    # },
+    # "6EXZ_MED": {
+    #     "contig_string": "0-65,A28-42,0-65",
+    #     "total_length": "80",
+    #     "redesign_sequence": "n/a",
+    # },
+    # "6EXZ_LONG": {
+    #     "contig_string": "0-95,A28-42,0-95",
+    #     "total_length": "110",
+    #     "redesign_sequence": "n/a",
+    # },
+}
+
+SIDECHAIN_TIP_ATOMS = {
+    "ALA": ["CA", "CB"],
+    "ARG": ["CD", "CZ", "NE", "NH1", "NH2"],
+    "ASP": ["CB", "CG", "OD1", "OD2"],
+    "ASN": ["CB", "CG", "ND2", "OD1"],
+    "CYS": ["CA", "CB", "SG"],
+    "GLU": ["CG", "CD", "OE1", "OE2"],
+    "GLN": ["CG", "CD", "NE2", "OE1"],
+    "GLY": [],
+    "HIS": ["CB", "CG", "CD2", "CE1", "ND1", "NE2"],
+    "ILE": ["CB", "CG1", "CG2", "CD1"],
+    "LEU": ["CB", "CG", "CD1", "CD2"],
+    "LYS": ["CE", "NZ"],
+    "MET": ["CG", "CE", "SD"],
+    "PHE": ["CB", "CG", "CD1", "CD2", "CE1", "CE2", "CZ"],
+    "PRO": ["CA", "CB", "CG", "CD", "N"],
+    "SER": ["CA", "CB", "OG"],
+    "THR": ["CA", "CB", "CG2", "OG1"],
+    "TRP": [
+        "CB",
+        "CG",
+        "CD1",
+        "CD2",
+        "CE2",
+        "CE3",
+        "CZ2",
+        "CZ3",
+        "CH2",
+        "NE1",
+    ],
+    "TYR": ["CB", "CG", "CD1", "CD2", "CE1", "CE2", "CZ", "OH"],
+    "VAL": ["CB", "CG1", "CG2"],
+}
+
+
+def parse_span(span):
+    if span[0].isalpha():  # conditional length
+        chain_id = span[0]
+        span = span[1:]
+        if "-" in span:
+            start, end = span.split("-")
+            # this gives the zero-indexed indices
+            list_of_aa_idxs = [
+                (chain_id, idx) for idx in range(int(start), int(end) + 1)
+            ]
+        else:
+            list_of_aa_idxs = [(chain_id, int(span))]
+    else:  # generated length
+        if "-" in span:
+            start, end = span.split("-")
+            # this gives the zero-indexed indices
+            segment_length = torch.randint(int(start), int(end), (1,)).item()
+            list_of_aa_idxs = [("", i) for i in range(segment_length)]
+        else:
+            list_of_aa_idxs = [("", i) for i in range(int(span))]
+
+    return list_of_aa_idxs
+
+
+def get_cond_seq_mask(span_in, redesign_sequence):
+    # For a conditioning span, determine which residues are not to be redesigned.
+    list_of_aa_idxs = parse_span(span_in)
+
+    if redesign_sequence == "n/a":
+        redesign_idxs = []
+    else:
+        redesign_idxs = []
+        for span in "".join(redesign_sequence.upper().split()).split(","):
+            redesign_idxs.extend(parse_span(span))
+
+    span_cond_seq_mask = []
+    for residue in list_of_aa_idxs:
+        if residue in redesign_idxs:
+            span_cond_seq_mask.append(0)
+        else:
+            span_cond_seq_mask.append(1)
+    return torch.Tensor(span_cond_seq_mask)
+
+
+def aatype_to_sidechain_end_mask(aatype):
+    sidechain_end_mask = torch.zeros(aatype.shape[0], 37)
+    for i, aa in enumerate(aatype):
+        aa3 = residue_constants.restype_1to3[residue_constants.restypes[aa]]
+        for atom_name in SIDECHAIN_TIP_ATOMS[aa3]:
+            atom37_idx = residue_constants.atom_order[atom_name]
+            sidechain_end_mask[i, atom37_idx] = 1
+    return sidechain_end_mask.to(aatype.device)
+
+
+def get_backbone_mask(atom_mask):
+    backbone_mask = torch.zeros_like(atom_mask)
+    for atom in ("N", "CA", "C", "O"):
+        backbone_mask[:, residue_constants.atom_order[atom]] = 1
+    return backbone_mask
+
+
+def parse_scaffolding_task_to_sampling_inputs(
+    task_name, seed=None, use_sidechain_end_atoms_only=False, device="cuda:0"
+):
+    if seed is not None:
+        torch.manual_seed(seed)
+    task_config = RFDIFFUSION_SCAFFOLDING_BENCHMARKS[task_name.upper()]
+    contig_string = task_config["contig_string"]
+    redesign_sequence = task_config["redesign_sequence"]
+    cond_chain_id = set([c for c in task_config["contig_string"] if c.isalpha()]).pop()
+    gt_feats = utils.load_feats_from_pdb(
+        f"eval_pdbs/{task_name[:4].lower()}.pdb", chain_id=cond_chain_id
+    )
+    # gt_cond_atom_mask is 1s for all atoms, need to multiply by atom mask outside this func
+    contig_string = "".join(contig_string.upper().split())
+    seq_mask = []
+    gt_cond_seq_mask = []
+    gt_cond_atom_mask = []
+    gt_aatype = []
+    gt_coords = []
+    current_length = 0
+    for segment in contig_string.split(","):
+        if segment[0].isalpha():
+            parsed_span = parse_span(segment)
+            cond_segment_idxs = [i for _, i in parsed_span]
+            cond_segment_idxs = [
+                (gt_feats["residue_index"] == i).nonzero().item()
+                for i in cond_segment_idxs
+            ]
+            cond_len = len(parsed_span)
+            seq_mask.append(torch.ones(cond_len))
+            cond_seq_mask = get_cond_seq_mask(segment, redesign_sequence)
+            keep_sidechain_mask = cond_seq_mask[:, None].tile((1, 37))
+            backbone_mask = get_backbone_mask(keep_sidechain_mask)
+            keep_sidechain_mask = keep_sidechain_mask.bool() | backbone_mask.bool()
+            init_cond_atom_mask = gt_feats["atom_mask"][cond_segment_idxs]
+            cond_atom_mask = (
+                init_cond_atom_mask * keep_sidechain_mask
+            )  # 1s for condseq mask = 1 and bb only for ==0
+            cond_aatype = gt_feats["aatype"][cond_segment_idxs].long()
+            if use_sidechain_end_atoms_only:
+                sidechain_end_mask = aatype_to_sidechain_end_mask(cond_aatype)
+                cond_atom_mask = cond_atom_mask * sidechain_end_mask
+            gt_cond_seq_mask.append(cond_seq_mask)
+            gt_cond_atom_mask.append(cond_atom_mask)
+            gt_aatype.append((cond_aatype * cond_seq_mask).long())
+            gt_coords.append(
+                gt_feats["atom_positions"][cond_segment_idxs]
+                * cond_atom_mask[..., None]
+            )
+            current_length += cond_len
+        else:
+            generated_len = len(parse_span(segment))
+            seq_mask.append(torch.ones(generated_len))
+            gt_cond_seq_mask.append(torch.zeros(generated_len))
+            gt_cond_atom_mask.append(torch.zeros(generated_len, 37))
+            gt_aatype.append(torch.zeros(generated_len).long())
+            gt_coords.append(torch.zeros(generated_len, 37, 3))
+            current_length += generated_len
+    sampling_inputs = {
+        "seq_mask": seq_mask,
+        "gt_cond_seq_mask": gt_cond_seq_mask,
+        "gt_cond_atom_mask": gt_cond_atom_mask,
+        "gt_aatype": gt_aatype,
+        "gt_coords": gt_coords,
+    }
+    sampling_inputs = {
+        k: torch.cat(v)[None].to(device) for k, v in sampling_inputs.items()
+    }
+    sampling_inputs["gt_aatype"] = sampling_inputs["gt_aatype"].long()
+    sampling_inputs["gt_coords"] = utils.center_coords_on_atom_mask(
+        sampling_inputs["gt_coords"], sampling_inputs["gt_cond_atom_mask"]
+    )
+    return sampling_inputs
+
+
+def batched_task_sampling_inputs(
+    task_name, num_samples, seed=0, use_sidechain_end_atoms_only=False, device="cuda:0"
+):
+    all_inputs = [
+        parse_scaffolding_task_to_sampling_inputs(
+            task_name,
+            seed + i,
+            use_sidechain_end_atoms_only=use_sidechain_end_atoms_only,
+        )
+        for i in range(num_samples)
+    ]
+    longest_len = max([inputs["seq_mask"].shape[1] for inputs in all_inputs])
+    batched_inputs = {"seq_mask": []}
+    for inputs in all_inputs:
+        for k, v in inputs.items():
+            if k == "seq_mask":
+                continue
+            v, mask = data.make_fixed_size_1d(v[0].cpu(), longest_len)
+            batched_inputs.setdefault(k, []).append(v)
+        batched_inputs["seq_mask"].append(mask)
+    batched_inputs = {k: torch.stack(v).to(device) for k, v in batched_inputs.items()}
+    batched_inputs["gt_aatype"] = batched_inputs["gt_aatype"].long()
+    return batched_inputs
+
+
+def evaluate_scaffolding(
+    model,
+    seed=0,
+    num_samples=10,
+    use_sidechain_end_atoms_only=False,
+    use_subset_of_tasks=False,
+    struct_pred_model=None,
+    tokenizer=None,
+    save_dir="",
+    verbose=False,
+    **kwargs,
+):
+    # For each task, draw 10 samples, refold, and measure self-consistency
+    # If scRMSD < 2 and motif_allatom_RMSD < 1.5 and pAE < 5 or pLDDT > 80, count as 'success'
+    # Report success rate for each task
+    if struct_pred_model is None:
+        struct_pred_model, tokenizer = get_esmfold_model()
+    sample_func = lambda **sample_kwargs: model.sample(
+        return_last=False,
+        return_aux=True,
+        tqdm_pbar=tqdm,
+        sidechain_mode=True,
+        n_steps=500,
+        **sample_kwargs,
+    )
+    if use_subset_of_tasks:
+        subset_list = ["1BCF", "3IXT", "5IUS", "1QJG", "6VW1", "5TRV_SHORT"]
+        benchmark = {
+            k: v
+            for k, v in RFDIFFUSION_SCAFFOLDING_BENCHMARKS.items()
+            if k in subset_list
+        }
+    else:
+        benchmark = RFDIFFUSION_SCAFFOLDING_BENCHMARKS
+    if use_sidechain_end_atoms_only:
+        benchmark = {
+            k: v
+            for k, v in benchmark.items()
+            if v["redesign_sequence"] == "n/a" or k == "1BCF_SITE"
+        }
+    all_results = []
+    for ti, (task_name, task_config) in enumerate(benchmark.items()):
+        batch = batched_task_sampling_inputs(
+            task_name,
+            num_samples,
+            use_sidechain_end_atoms_only=use_sidechain_end_atoms_only,
+            seed=seed + ti,
+        )
+        aux = sample_func(
+            **batch,
+            **kwargs,
+        )
+
+        # Stage 2
+        samp_seq = aux["st_traj"][-1]
+        samp_coords = aux["xt_traj"][-1]
+        seq_mask = aux["seq_mask"]
+        cond_atom_mask = utils.atom37_mask_from_aatype((seq_mask * 7).long(), seq_mask)
+        cond_atom_mask = cond_atom_mask.bool() | batch["gt_cond_atom_mask"].bool()
+        stage_2_kwargs = vars(
+            argparse.Namespace(
+                apply_cond_proportion=1.0,
+                n_steps=200,
+                s_churn=100,
+                step_scale=1.2,
+                sidechain_mode=True,
+                skip_mpnn_proportion=1.0,
+            )
+        )
+        device = "cuda:0"
+        stage2_aux = model.sample(
+            gt_cond_atom_mask=cond_atom_mask.float().to(device),
+            gt_cond_seq_mask=seq_mask.to(device),
+            gt_coords=samp_coords.to(device),
+            gt_aatype=samp_seq.to(device),
+            seq_mask=seq_mask,
+            return_last=False,
+            return_aux=True,
+            **stage_2_kwargs,
+        )
+
+        # Self consistency
+        seq_lens = seq_mask.sum(-1).long()
+        for i, l in enumerate(seq_lens):
+            coords_i = stage2_aux["x"][i, :l]
+            aatype_i = stage2_aux["s"][i, :l]
+            pred_coords, plddts = predict_structures(
+                utils.aatype_to_seq(aatype_i),
+                model=struct_pred_model,
+                tokenizer=tokenizer,
+            )
+            pred_coords_i = pred_coords[0]
+            utils.write_coords_to_pdb(
+                coords_i,
+                os.path.join(
+                    f"{save_dir}", f"{save_dir.split('/')[-2]}_{task_name}_samp_{i}.pdb"
+                ),
+                batched=False,
+                aatype=aatype_i,
+                atom_mask=utils.atom37_mask_from_aatype(aatype_i),
+                conect=True,
+            )
+            utils.write_coords_to_pdb(
+                pred_coords_i,
+                os.path.join(
+                    f"{save_dir}", f"{save_dir.split('/')[-2]}_{task_name}_pred_{i}.pdb"
+                ),
+                batched=False,
+                aatype=aatype_i,
+                atom_mask=utils.atom37_mask_from_aatype(aatype_i),
+                conect=True,
+            )
+            motif_atom_mask = batch["gt_cond_atom_mask"][i, :l]
+            motif_bb_atom_mask = motif_atom_mask * get_backbone_mask(motif_atom_mask)
+            alignment = utils.quick_tmalign(coords_i, coords_i, pred_coords_i)
+
+            def masked_rmsd(aligned, coords2, atom_mask):
+                rmsd = (aligned - coords2).pow(2).sum(-1).sqrt()
+                rmsd = (rmsd * atom_mask).sum() / atom_mask.sum().clamp(min=1)
+                return rmsd.cpu().item()
+
+            # Compute motif RMSDs on TMalignment, scRMSD on kabsch alignment
+            motif_rmsd = masked_rmsd(
+                alignment["aligned"], pred_coords_i, motif_atom_mask
+            )
+            motif_rmsd = compute_masked_rmsd(coords_i, pred_coords_i, motif_atom_mask)
+            motif_bb_rmsd = masked_rmsd(
+                alignment["aligned"], pred_coords_i, motif_bb_atom_mask
+            )
+            motif_bb_rmsd = compute_masked_rmsd(
+                coords_i, pred_coords_i, motif_bb_atom_mask
+            )
+            sc_rmsd = compute_structure_metric(coords_i, pred_coords_i)
+            sc_tm = alignment["tm_score"]
+            result = {
+                "task_name": task_name,
+                "sample_idx": i,
+                "motif_rmsd": motif_rmsd,
+                "motif_bb_rmsd": motif_bb_rmsd,
+                "sc_rmsd": sc_rmsd,
+                "sc_tm": sc_tm,
+                "plddt": plddts[0].cpu().item(),
+                "motif_idxs": motif_atom_mask.any(-1).nonzero().squeeze(-1).tolist(),
+            }
+            if verbose:
+                print(result)
+            all_results.append(result)
+
+    return all_results

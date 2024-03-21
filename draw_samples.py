@@ -21,8 +21,8 @@ from core import data
 from core import residue_constants
 from core import utils
 import diffusion
+import inference
 import models
-import sampling
 
 
 def draw_and_save_samples(
@@ -310,7 +310,7 @@ def main():
         model.eval()
         model.device = device
 
-    if config.train.home_dir == '':
+    if config.train.home_dir == "":
         config.train.home_dir = os.path.dirname(os.getcwd())
 
     # Sampling
