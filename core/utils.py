@@ -73,7 +73,7 @@ def seq_to_aatype(seq, num_tokens=21):
     return torch.Tensor([mapping[aa] for aa in seq]).long()
 
 
-def batched_seq_to_aatype_and_mask(seqs, max_len=None):
+def batched_seq_to_aatype_and_mask(seqs, max_len=None, num_seqs = None):
     if max_len is None:
         max_len = max([len(s) for s in seqs])
     aatypes = []
@@ -211,6 +211,14 @@ def fill_in_cbeta_for_atom37(coords):
     new_coords[..., 3, :] = cbeta
     return new_coords
 
+def fill_in_cbeta_for_atom37_all(coords): #! 24/05/20, JH: added, missed cbeta atoms for GLY
+    b = coords[..., 1, :] - coords[..., 0, :]
+    c = coords[..., 2, :] - coords[..., 1, :]
+    a = torch.cross(b, c, dim=-1)
+    cbeta = -0.58273431 * a + 0.56802827 * b - 0.54067466 * c + coords[..., 1, :]
+    new_coords = torch.clone(coords)
+    new_coords[..., 3, :] = cbeta
+    return new_coords
 
 def get_distogram(coords, n_bins=20, start=2, return_onehot=True, seq_mask=None):
     # coords is b, nres, natom, 3
@@ -602,6 +610,23 @@ def fill_Os_from_NCaC_coords(
         else:
             return coords_out
 
+def get_masked_coords_array(coords, atom_mask):
+    ma_mask = repeat(1 - atom_mask[..., None].cpu().numpy(), "... 1 -> ... 3")
+    return np.ma.array(coords.cpu().numpy(), mask=ma_mask)
+
+
+def center_coords_on_atom_mask(atom_coords, center_atom_mask):
+    # coords is (b, n, a, x)
+    motif_masked_array = get_masked_coords_array(atom_coords, center_atom_mask)
+    cond_coords_center = motif_masked_array.mean((1, 2))
+    # Calculates center only on masked array
+    motif_mask = torch.Tensor(1 - cond_coords_center.mask).to(center_atom_mask)
+    # motif_mask = center_atom_mask basically.
+    means = torch.Tensor(cond_coords_center.data).to(atom_coords) * motif_mask
+    
+    centered_coords = atom_coords - rearrange(means, "b c -> b 1 1 c")
+    #! when doing crop conditioning, subtracting means from all coords makes non-motif coords nonzero.
+    return centered_coords
 
 def _extend(x, axis=1, n=1, prepend=False):
     # Add an extra zeros 'residue' to the end (or beginning, prepend=True) of a Tensor

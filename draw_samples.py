@@ -5,6 +5,11 @@ Author: Alex Chu
 
 Entry point for unconditional or simple conditional sampling.
 """
+import sys
+import os
+current_directory = os.getcwd()
+sys.path.insert(0, current_directory)
+
 import argparse
 from datetime import datetime
 import json
@@ -21,7 +26,7 @@ from core import data
 from core import residue_constants
 from core import utils
 import diffusion
-import inference
+import sampling
 import models
 
 
@@ -34,7 +39,7 @@ def draw_and_save_samples(
     **sampling_kwargs,
 ):
     device = model.device
-    if mode == "backbone":
+    if "backbone" in mode:
         total_sampling_time = 0
         for l in lengths:
             prot_lens = torch.ones(samples_per_len).long() * l
@@ -50,7 +55,7 @@ def draw_and_save_samples(
             total_sampling_time += aux["runtime"]
             print("Samples drawn for length", l)
         return total_sampling_time
-    elif mode == "allatom":
+    elif "allatom" in mode:
         total_sampling_time = 0
         for l in lengths:
             prot_lens = torch.ones(samples_per_len).long() * l
@@ -98,36 +103,23 @@ class Manager(object):
             help="Path to minimpnn model weights",
         )
         self.parser.add_argument(
-            "--modeldir",
-            type=str,
-            help="Model base directory, ex 'training_logs/other/lemon-shape-51'",
-        )
-        self.parser.add_argument("--modelepoch", type=int, help="Model epoch, ex 1000")
-        self.parser.add_argument(
             "--type", type=str, default="allatom", help="Type of model"
         )
         self.parser.add_argument(
-            "--param", type=str, default=None, help="Which sampling param to vary"
-        )
-        self.parser.add_argument(
-            "--paramval", type=str, default=None, help="Which param val to use"
-        )
-        self.parser.add_argument(
-            "--parampath",
-            type=str,
-            default=None,
-            help="Path to json file with params, either use param/paramval or parampath, not both",
-        )
+            "--sampling_configdir", 
+            type=str, 
+            default="configs/sampling.yml",
+            help="Path to sampling config")
         self.parser.add_argument(
             "--perlen", type=int, default=2, help="How many samples per sequence length"
         )
         self.parser.add_argument(
-            "--minlen", type=int, default=50, help="Minimum sequence length"
+            "--minlen", type=int, default=100, help="Minimum sequence length"
         )
         self.parser.add_argument(
             "--maxlen",
             type=int,
-            default=60,
+            default=110,
             help="Maximum sequence length, not inclusive",
         )
         self.parser.add_argument(
@@ -146,12 +138,13 @@ class Manager(object):
             "--targetdir", type=str, default=".", help="Directory to save results"
         )
         self.parser.add_argument(
-            "--input_pdb", type=str, required=False, help="PDB file to condition on"
+            "--input_pdb", type=str, default="samples/len100_samp1.pdb", required=False, help="PDB file to condition on"
         )
         self.parser.add_argument(
             "--resample_idxs",
             type=str,
             required=False,
+            default = "20-99",
             help="Indices from PDB file to resample. Zero-indexed, comma-delimited, can use dashes, eg 0,2-5,7",
         )
 
@@ -180,11 +173,11 @@ def main():
     device = "cuda:0"
 
     # setting default sampling config
-    if args.type == "backbone":
-        sampling_config = sampling.default_backbone_sampling_config()
-    elif args.type == "allatom":
-        sampling_config = sampling.default_allatom_sampling_config()
-
+    sampling_config = utils.load_config(args.sampling_configdir)
+    if "backbone" in args.type:
+        sampling_config = sampling_config.backbone
+    elif "allatom" in args.type:
+        sampling_config = sampling_config.allatom
     sampling_kwargs = vars(sampling_config)
 
     # Parse conditioning inputs
@@ -210,6 +203,7 @@ def main():
             atom_mask=input_feats["atom_mask"],
             translation_scale=0.0,
         )
+
         cond_kwargs = {}
         cond_kwargs["gt_coords"] = to_batch_size(centered_coords)
         cond_kwargs["gt_cond_atom_mask"] = to_batch_size(input_feats["atom_mask"])
@@ -234,29 +228,12 @@ def main():
 
     total_num_samples = len(list(sampling_lengths)) * samples_per_len
 
-    model_directory = args.modeldir
-    epoch = args.modelepoch
     base_dir = args.targetdir
 
     date_string = datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     if is_test_run:
         date_string = f"test-{date_string}"
 
-    # Update sampling config with arguments
-    if args.param:
-        var_param = args.param
-        var_value = args.paramval
-        sampling_kwargs[var_param] = (
-            None
-            if var_value == "None"
-            else int(var_value)
-            if var_param == "n_steps"
-            else float(var_value)
-        )
-    elif args.parampath:
-        with open(args.parampath) as f:
-            var_params = json.loads(f.read())
-            sampling_kwargs.update(var_params)
 
     # this is only used for the readme, keep s_min and s_max as params instead of struct_noise_schedule
     sampling_kwargs_readme = list(sampling_kwargs.items())
@@ -276,15 +253,19 @@ def main():
         subprocess.run(shlex.split(f"mkdir -p {save_init_dir}"))
 
     # Load model
-    if args.type == "backbone":
-        if args.model_checkpoint:
-            checkpoint = f"{args.model_checkpoint}/backbone_state_dict.pth"
-            cfg_path = f"{args.model_checkpoint}/backbone_pretrained.yml"
-        else:
-            checkpoint = (
-                f"{model_directory}/checkpoints/epoch{epoch}_training_state.pth"
-            )
-            cfg_path = f"{model_directory}/configs/backbone.yml"
+    if args.type == "backbone_old":
+        checkpoint = f"{args.model_checkpoint}/backbone_old_state_dict.pth"
+        cfg_path = f"{args.model_checkpoint}/backbone_old.yml"
+        config = utils.load_config(cfg_path)
+        weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
+        model = models.Protpardelle(config, device=device)
+        model.load_state_dict(weights)
+        model.to(device)
+        model.eval()
+        model.device = device
+    elif args.type == "backbone_new":        
+        checkpoint = f"{args.model_checkpoint}/backbone_new_training_state.pth"
+        cfg_path = f"{args.model_checkpoint}/backbone_new.yml"
         config = utils.load_config(cfg_path)
         weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
         model = models.Protpardelle(config, device=device)
@@ -293,14 +274,8 @@ def main():
         model.eval()
         model.device = device
     elif args.type == "allatom":
-        if args.model_checkpoint:
-            checkpoint = f"{args.model_checkpoint}/allatom_state_dict.pth"
-            cfg_path = f"{args.model_checkpoint}/allatom_pretrained.yml"
-        else:
-            checkpoint = (
-                f"{model_directory}/checkpoints/epoch{epoch}_training_state.pth"
-            )
-            cfg_path = f"{model_directory}/configs/allatom.yml"
+        checkpoint = f"{args.model_checkpoint}/allatom_state_dict.pth"
+        cfg_path = f"{args.model_checkpoint}/allatom_pretrained.yml"
         config = utils.load_config(cfg_path)
         weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
         model = models.Protpardelle(config, device=device)
@@ -311,7 +286,7 @@ def main():
         model.device = device
 
     if config.train.home_dir == "":
-        config.train.home_dir = os.path.dirname(os.getcwd())
+        config.train.home_dir = os.getcwd() #os.path.dirname(os.getcwd())
 
     # Sampling
     with open(save_dir + "/readme.txt", "w") as f:

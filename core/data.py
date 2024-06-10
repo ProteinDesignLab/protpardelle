@@ -38,11 +38,10 @@ FEATURES_FLOAT = (
 FEATURES_LONG = ("aatype", "residue_index", "chain_index", "orig_size")
 
 
-def make_fixed_size_1d(data, fixed_size=128):
+def make_fixed_size_1d(data, fixed_size, start_idx):
     data_len = data.shape[0]
     if data_len >= fixed_size:
         extra_len = data_len - fixed_size
-        start_idx = np.random.choice(np.arange(extra_len + 1))
         new_data = data[start_idx : (start_idx + fixed_size)]
         mask = torch.ones(fixed_size)
     if data_len < fixed_size:
@@ -53,10 +52,14 @@ def make_fixed_size_1d(data, fixed_size=128):
     return new_data, mask
 
 
-def apply_random_se3(coords_in, atom_mask=None, translation_scale=1.0):
+def apply_random_se3(coords_in, atom_mask=None, translation_scale=1.0, rotation_mode='quaternion'):
     # unbatched. center on the mean of CA coords
     coords_mean = coords_in[:, 1:2].mean(-3, keepdim=True)
     coords_in -= coords_mean
+    if rotation_mode == "svd":
+        random_rot, _ = torch.linalg.qr(torch.randn(3, 3))
+    elif rotation_mode == "quaternion":
+        random_rot = uniform_rand_rotation(1).squeeze(0)
     random_rot, _ = torch.linalg.qr(torch.randn(3, 3))
     coords_in = coords_in @ random_rot
     random_trans = torch.randn_like(coords_mean) * translation_scale
@@ -65,11 +68,21 @@ def apply_random_se3(coords_in, atom_mask=None, translation_scale=1.0):
         coords_in = coords_in * atom_mask[..., None]
     return coords_in
 
+def uniform_rand_rotation(batch_size): #! 24/1/10 ZH added
+    # Creates a shape (batch_size, 3, 3) rotation matrix uniformly at random in SO(3)
+    # Uses quaternionic multiplication to generate independent rotation matrices for each batch
+    q = torch.randn(batch_size, 4)
+    q /= torch.norm(q, dim=1, keepdim=True)
+    rotation = torch.zeros(batch_size,3,3).to(q)
+    a, b, c, d = q[:,0], q[:,1], q[:,2], q[:,3]
+    rotation[:,0,:] = torch.stack([2*a**2 -1 + 2*b**2,   2*b*c - 2*a*d,        2*b*d + 2*a*c]).T
+    rotation[:,1,:] = torch.stack([2*b*c + 2*a*d,        2*a**2 -1 + 2*c**2,   2*c*d - 2*a*b]).T
+    rotation[:,2,:] = torch.stack([2*b*d - 2*a*c,        2*c*d + 2*a*b,        2*a**2 -1 + 2*d**2]).T
+    return rotation
 
 def get_masked_coords_array(coords, atom_mask):
     ma_mask = repeat(1 - atom_mask[..., None].cpu().numpy(), "... 1 -> ... 3")
     return np.ma.array(coords.cpu().numpy(), mask=ma_mask)
-
 
 def make_crop_cond_mask_and_recenter_coords(
     atom_mask,
@@ -110,6 +123,7 @@ def make_crop_cond_mask_and_recenter_coords(
             mask[span_start : span_start + span_len, :] = 1
         elif conditioning_type == "discontiguous":
             # Extract CB atoms coordinates for the i-th example
+            GLY_filled_atom_coords = utils.fill_in_cbeta_for_atom37_all(atom_coords) #! 24/05/20, JH: bug fixed, missed cbeta atoms for GLY   
             cb_atoms = atom_coords[i, :, 3]
             # Pairwise distances between CB atoms
             cb_distances = torch.cdist(cb_atoms, cb_atoms)
@@ -228,10 +242,18 @@ class Dataset(data.Dataset):
 
         fixed_size_example = {}
         seq_mask = None
+
+        #! 24/05/20, JH: Random cropping bug fixed
+        extra_len = orig_size - self.fixed_size 
+        if extra_len >= 0:
+            start_idx = np.random.choice(np.arange(extra_len + 1))
+        else:
+            start_idx = None
+
         for k, v in example.items():
-            if k in FEATURES_1D:
+            if k in FEATURES_1D:  
                 fixed_size_example[k], seq_mask = make_fixed_size_1d(
-                    v, fixed_size=self.fixed_size
+                    v, fixed_size = self.fixed_size, start_idx=start_idx
                 )
             else:
                 fixed_size_example[k] = v
