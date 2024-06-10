@@ -21,43 +21,6 @@ from core import utils
 import diffusion
 
 
-def default_backbone_sampling_config():
-    config = argparse.Namespace(
-        n_steps=200,
-        s_churn=40,
-        step_scale=1.2,
-        sidechain_mode=False,
-        noise_schedule=lambda t: diffusion.noise_schedule(t, s_max=80, s_min=0.001),
-    )
-    return config
-
-
-def default_allatom_sampling_config():
-    noise_schedule = lambda t: diffusion.noise_schedule(t, s_max=80, s_min=0.001)
-    stage2 = argparse.Namespace(
-        apply_cond_proportion=1.0,
-        n_steps=200,
-        s_churn=100,
-        step_scale=1.2,
-        sidechain_mode=True,
-        skip_mpnn_proportion=1.0,
-        noise_schedule=noise_schedule,
-    )
-    config = argparse.Namespace(
-        n_steps=500,
-        s_churn=200,
-        step_scale=1.2,
-        sidechain_mode=True,
-        skip_mpnn_proportion=0.6,
-        use_fullmpnn=False,
-        use_fullmpnn_for_final=True,
-        anneal_seq_resampling_rate="linear",
-        noise_schedule=noise_schedule,
-        stage_2=stage2,
-    )
-    return config
-
-
 def draw_backbone_samples(
     model: torch.nn.Module,
     seq_mask: TensorType["b n", float] = None,
@@ -91,6 +54,7 @@ def draw_backbone_samples(
         gly_aatype = (seq_mask * residue_constants.restype_order["G"]).long()
         trimmed_aatype = [a[: seq_lens[i]] for i, a in enumerate(gly_aatype)]
         atom_mask = utils.atom37_mask_from_aatype(gly_aatype, seq_mask).cpu()
+
         for i in range(len(cropped_samp_coords)):
             utils.write_coords_to_pdb(
                 cropped_samp_coords[i],

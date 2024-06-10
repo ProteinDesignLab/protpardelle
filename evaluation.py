@@ -21,8 +21,10 @@ from core import data
 from core import residue_constants
 from core import utils
 from core import protein_mpnn as mpnn
-import inference
+import sampling
 import modules
+import subprocess
+import uuid
 
 
 def mean(x):
@@ -39,9 +41,17 @@ def calculate_seq_identity(seq1, seq2, seq_mask=None):
     else:
         return identity.mean(-1)
 
-
-def design_sequence(coords, model=None, num_seqs=1, disallow_aas=["C"]):
+def design_sequence(
+    coords,
+    model=None,
+    num_seqs=1,
+    mpnn_batch_size=1, #! changed 12/21 ZH
+    disallow_aas=["C"],
+    input_aatype=None,
+    fixed_positions_idxs=[],
+):
     # Returns list of strs; seqs like 'MKRLLDS', not aatypes
+    # fixed positions are zero indexed
     if model is None:
         model = mpnn.get_mpnn_model()
     if isinstance(coords, str):
@@ -49,22 +59,69 @@ def design_sequence(coords, model=None, num_seqs=1, disallow_aas=["C"]):
         pdb_fn = coords
     else:
         temp_pdb = True
-        pdb_fn = f"tmp{np.random.randint(0, 1e8)}.pdb"
+        pdb_fn = f"tmp_{uuid.uuid4()}.pdb"
         gly_idx = residue_constants.restype_order["G"]
-        gly_aatype = (torch.ones(coords.shape[0]) * gly_idx).long()
-        utils.write_coords_to_pdb(coords, pdb_fn, batched=False, aatype=gly_aatype)
+        aatype_in = (torch.ones(coords.shape[0]) * gly_idx).long()
+        atom_mask = utils.atom37_mask_from_aatype(aatype_in)  # gly atom mask
+        if input_aatype is not None:
+            aatype_in = input_aatype
+        utils.write_coords_to_pdb(
+            coords, pdb_fn, batched=False, aatype=aatype_in, atom_mask=atom_mask
+        )
+    
+    
+    fixed_positions_dict = {}
+    if len(fixed_positions_idxs) > 0:
+        fixed_positions_dict = {
+            pdb_fn[:-4]: {"A": [i + 1 for i in fixed_positions_idxs]}
+        }
 
     with torch.no_grad():
         designed_seqs = mpnn.run_proteinmpnn(
             model=model,
             pdb_path=pdb_fn,
-            num_seq_per_target=num_seqs,
+            num_seq_per_target=num_seqs, 
+            batch_size = mpnn_batch_size, 
             omit_AAs=disallow_aas,
+            fixed_positions_dict_in=fixed_positions_dict,
         )
-
+        # import ipdb; ipdb.set_trace()
     if temp_pdb:
-        os.system("rm " + pdb_fn)
+        try: 
+            subprocess.getoutput(f"rm {pdb_fn}")
+        except Exception as e:
+            print("Error occurred:", e)
+
+    if num_seqs == 1:
+        designed_seqs = designed_seqs[0] 
+        
     return designed_seqs
+
+# def design_sequence(coords, model=None, num_seqs=1, disallow_aas=["C"]):
+#     # Returns list of strs; seqs like 'MKRLLDS', not aatypes
+#     if model is None:
+#         model = mpnn.get_mpnn_model()
+#     if isinstance(coords, str):
+#         temp_pdb = False
+#         pdb_fn = coords
+#     else:
+#         temp_pdb = True
+#         pdb_fn = f"tmp{np.random.randint(0, 1e8)}.pdb"
+#         gly_idx = residue_constants.restype_order["G"]
+#         gly_aatype = (torch.ones(coords.shape[0]) * gly_idx).long()
+#         utils.write_coords_to_pdb(coords, pdb_fn, batched=False, aatype=gly_aatype)
+
+#     with torch.no_grad():
+#         designed_seqs = mpnn.run_proteinmpnn(
+#             model=model,
+#             pdb_path=pdb_fn,
+#             num_seq_per_target=num_seqs,
+#             omit_AAs=disallow_aas,
+#         )
+
+#     if temp_pdb:
+#         os.system("rm " + pdb_fn)
+#     return designed_seqs
 
 
 def get_esmfold_model(device=None):
@@ -316,8 +373,8 @@ def evaluate_backbone_generation(
     tokenizer=None,
     sample_length_range=(50, 512),
 ):
-    sampling_config = inference.default_backbone_sampling_config()
-    trimmed_coords, seq_mask = inference.draw_backbone_samples(
+    sampling_config = sampling.default_backbone_sampling_config()
+    trimmed_coords, seq_mask = sampling.draw_backbone_samples(
         model,
         n_samples=n_samples,
         sample_length_range=sample_length_range,
@@ -349,8 +406,8 @@ def evaluate_allatom_generation(
     model.load_minimpnn()
     model.eval()
 
-    sampling_config = inference.default_allatom_sampling_config()
-    ret = inference.draw_allatom_samples(
+    sampling_config = sampling.default_allatom_sampling_config()
+    ret = sampling.draw_allatom_samples(
         model,
         n_samples=n_samples,
         two_stage_sampling=two_stage_sampling,

@@ -23,16 +23,17 @@ train:
 
 data:
     pdb_path: 'datasets/ingraham_cath_dataset'
-    fixed_size: 384
+    fixed_size: 512
     n_aatype_tokens: 21
     se3_data_augment: True
-    sigma_data: 10.0
+    sigma_data: 10.01
+    rotation_mode: "quaternion"
 
 diffusion:
     training:
         function: 'lognormal'
-        psigma_mean: -1.2
-        psigma_std: 1.2
+        psigma_mean: -0.5
+        psigma_std: 1.5
     sampling:
         function: 'uniform'
         s_min: 0.001
@@ -52,14 +53,14 @@ model:
         noise_cond_mult: 4
         uvit:
             patch_size: 1
-            n_layers: 6
+            n_layers: 10
             n_heads: 8
             dim_head: 32
             n_filt_per_layer: []
             n_blocks_per_layer: 2
             cat_pwd_to_conv: False
             conv_skip_connection: False
-            position_embedding_type: 'absolute_residx'
+            position_embedding_type: 'rotary'
     mpnn_model:
         use_self_conditioning: True
         label_smoothing: 0.1
