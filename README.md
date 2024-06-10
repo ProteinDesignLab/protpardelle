@@ -38,6 +38,8 @@ load protpardelle_pymol.py
 
 **Conditional Design**
 
+Currently conditional design codes are not working, we will fix the bugs soon; sorry for inconvenience.
+
 To run conditional design first load a structure e.g
 ```
 fetch 1pga
@@ -65,15 +67,16 @@ protpardelle_uncond 50,60,5,1,backbone
 
 ## Inference
 
+24/06/10 Update
+1. We've updated a new backbone model weight and the config. We recommend using the new weight.
+2. You can change some sampling hyperparameters in configs/sampling.yml. The most important hyperparameters are step_scale and s_churn. Increasing step scale (like 1.1 or 1.2) will generate more designable sample but less diverse samples, and decreasing s_churn will generate less designable sample but more diverse sample. You can also change n_steps, rho, s_max, and s_min, and we'd recommend reading karras paper(https://proceedings.neurips.cc/paper_files/paper/2022/hash/a98846e9d9cc01cfb87eb694d946ce6b-Abstract-Conference.html) to understand the role of these hyperparameters.
+3. Currently conditional generation is not working; we will be fixing it soon. 
+
 The entry point for sampling is `draw_samples.py`, which is a convenience wrapper around `sampling.py` and the `model.sample()` function. There are a number of arguments which can be passed to control the model checkpoints, the sampling configuration, and lengths of the proteins sampled. Model weights are provided for both the backbone-only and all-atom versions of Protpardelle. Both of these are trained unconditionally; we will release conditional models in a later update. Below are some examples of how to draw samples.
 
 The default command used to draw all-atom samples (for example, for 2 proteins at each length in `range(80, 100, 5)`):
 
 `python draw_samples.py --type allatom --minlen 80 --maxlen 100 --steplen 5 --perlen 2`
-
-To draw 8 samples per length for lengths in `range(70, 150, 5)` from the backbone-only model, with 100 denoising steps instead of the default, run this command. (This is illustrative; I would not expect to get quality samples with 100 denoising steps.)
-
-`python draw_samples.py --type backbone --param n_steps --paramval 100 --minlen 70 --maxlen 150 --steplen 5 --perlen 8`
 
 We have also added the ability to provide an input PDB file and a list of (zero-indexed) indices to condition on from the PDB file. Note also that current models are single-chain only, so multi-chain PDBs will be treated as single chains (we intend to release multi-chain models in a later update). We can expect it to do better or worse depending on the problem (better on easier problems such as inpainting, worse on difficult problems such as discontiguous scaffolding). Use this command to resample the first 25 and 71st to 80th residues of `my_pdb.pdb`.
 
