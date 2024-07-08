@@ -6,6 +6,7 @@ Author: Alex Chu
 Top-level model definitions.
 Typically these are initialized with config rather than arguments.
 """
+
 import argparse
 from functools import partial
 import os
@@ -382,8 +383,8 @@ class Protpardelle(nn.Module):
         noise_scale: float = 1.0,
         s_t_min: float = 0.01,
         s_t_max: float = 50.0,
-        s_min = 0.001,
-        s_max = 80,
+        s_min=0.001,
+        s_max=80,
         temperature: float = 1.0,
         top_p: float = 1.0,
         disallow_aas: List[int] = [4, 20],  # cys, unk
@@ -402,10 +403,10 @@ class Protpardelle(nn.Module):
         use_superposition: bool = True,
         use_replacement: bool = False,
         stage2_sampling: bool = False,
-        rho: int=7,
+        rho: int = 7,
         crop_conditional_sampling: bool = True,
-        num_seqs: int = 1, #! Added 12/26, ZH
-        mpnn_batch_size: int = 1, #! Added 12/26, ZH
+        num_seqs: int = 1,  #! Added 12/26, ZH
+        mpnn_batch_size: int = 1,  #! Added 12/26, ZH
     ):
         """Sampling function for backbone or all-atom diffusion. All arguments are optional.
 
@@ -452,7 +453,15 @@ class Protpardelle(nn.Module):
         """
 
         def get_denoiser(forward_fn, seq_mask, residue_index):
-            def x0_from_xt(xt, sigma, x_self_cond, s_self_cond, crop_cond_coords, run_mpnn, use_mpnn): #! added use_mpnn
+            def x0_from_xt(
+                xt,
+                sigma,
+                x_self_cond,
+                s_self_cond,
+                crop_cond_coords,
+                run_mpnn,
+                use_mpnn,
+            ):  #! added use_mpnn
                 x0, s_logprobs, x_self_cond, s_self_cond = forward_fn(
                     noisy_coords=xt,
                     noise_level=sigma,
@@ -465,9 +474,19 @@ class Protpardelle(nn.Module):
                     use_mpnn_model=use_mpnn,
                 )
                 return x0, s_logprobs, x_self_cond, s_self_cond
+
             return x0_from_xt
 
-        def ode_step(sigma_in, sigma_next, xt_in, x0_pred, guidance_in=None, return_addl=False, sidechain_mode=False, gamma = 0.0):
+        def ode_step(
+            sigma_in,
+            sigma_next,
+            xt_in,
+            x0_pred,
+            guidance_in=None,
+            return_addl=False,
+            sidechain_mode=False,
+            gamma=0.0,
+        ):
             if sidechain_mode == False:
                 pass
             elif sidechain_mode == True:
@@ -490,17 +509,23 @@ class Protpardelle(nn.Module):
                 score_std = score[guidance_mask.bool()].var().sqrt()
                 if anneal_guidance_scale:
                     recon_weight = guidance_scale * torch.tanh(
-                        10 * torch.Tensor((1-t,))
+                        10 * torch.Tensor((1 - t,))
                     ).to(score)
                 else:
                     recon_weight = guidance_scale
                 mask_ = torch.ones_like(score) * mask[..., None]
 
                 # normalizing score and guidance
-                score_norm = (score.pow(2) * mask_).sum((-1,-2,-3)) / mask_.sum((-1,-2,-3)).clamp(min=1)
-                guidance_norm = (guidance.pow(2) * mask_).sum((-1,-2,-3)) / mask_.sum((-1,-2,-3)).clamp(min=1)
-                guidance = guidance * utils.expand(score_norm.sqrt() / guidance_norm.sqrt(), guidance)
-                score = (score + guidance * recon_weight) / (1 + recon_weight) 
+                score_norm = (score.pow(2) * mask_).sum((-1, -2, -3)) / mask_.sum(
+                    (-1, -2, -3)
+                ).clamp(min=1)
+                guidance_norm = (guidance.pow(2) * mask_).sum((-1, -2, -3)) / mask_.sum(
+                    (-1, -2, -3)
+                ).clamp(min=1)
+                guidance = guidance * utils.expand(
+                    score_norm.sqrt() / guidance_norm.sqrt(), guidance
+                )
+                score = (score + guidance * recon_weight) / (1 + recon_weight)
 
             if use_classifier_free_guidance and guidance_in is not None:
                 # guidance_in is the unconditional x0 (x0_pred is the conditional x0)
@@ -553,8 +578,13 @@ class Protpardelle(nn.Module):
             return samp_aatype
 
         def design_with_fullmpnn(
-            batched_coords, seq_mask, cond_aatype=None, cond_seq_mask=None, num_seqs = 1, mpnn_batch_size = 1,
-        ):  
+            batched_coords,
+            seq_mask,
+            cond_aatype=None,
+            cond_seq_mask=None,
+            num_seqs=1,
+            mpnn_batch_size=1,
+        ):
             seq_lens = seq_mask.sum(-1).long()
             if cond_aatype is not None and cond_seq_mask is not None:
                 input_aatype = cond_aatype
@@ -569,36 +599,38 @@ class Protpardelle(nn.Module):
                 evaluation.design_sequence(
                     c[: seq_lens[i]],
                     model=fullmpnn_model,
-                    num_seqs = num_seqs, 
-                    mpnn_batch_size = mpnn_batch_size, 
+                    num_seqs=num_seqs,
+                    mpnn_batch_size=mpnn_batch_size,
                     input_aatype=input_aatype[i],
                     fixed_positions_idxs=fixed_seqdes_lists[i],
                 )
                 for i, c in enumerate(batched_coords)
             ]
-            
-            if num_seqs == 1: 
+
+            if num_seqs == 1:
                 designed_aatypes, _ = utils.batched_seq_to_aatype_and_mask(
-                designed_seqs, max_len=seq_mask.shape[-1], num_seqs = num_seqs
-            )
-                
-            elif num_seqs > 1: 
+                    designed_seqs, max_len=seq_mask.shape[-1], num_seqs=num_seqs
+                )
+
+            elif num_seqs > 1:
                 designed_aatypes = []
                 for i, c in enumerate(designed_seqs):
                     designed_aatype_i, _ = utils.batched_seq_to_aatype_and_mask(
-                        c, max_len = seq_mask.shape[-1], num_seqs = num_seqs
+                        c, max_len=seq_mask.shape[-1], num_seqs=num_seqs
                     )
                     designed_aatypes.append(designed_aatype_i)
-                
-                designed_aatypes = torch.stack(designed_aatypes) #shape: (b, num_seqs, seq_len)
+
+                designed_aatypes = torch.stack(
+                    designed_aatypes
+                )  # shape: (b, num_seqs, seq_len)
 
             if cond_seq_mask is not None:
                 fixed_pos = cond_seq_mask.cpu().bool()
-                if num_seqs == 1: 
+                if num_seqs == 1:
                     assert torch.equal(
                         designed_aatypes[fixed_pos], cond_aatype.cpu()[fixed_pos]
                     ), (designed_aatypes[0], cond_aatype[0], cond_seq_mask[0])
-                #Todo: Have to make assert statement for num_seqs > 1
+                # Todo: Have to make assert statement for num_seqs > 1
 
             return designed_aatypes
 
@@ -626,12 +658,13 @@ class Protpardelle(nn.Module):
         s_t_min = s_t_min * self.sigma_data
         s_t_max = s_t_max * self.sigma_data
 
-        noise_schedule = partial(diffusion.noise_schedule,
-                            sigma_data=self.sigma_data,
-                            s_min = s_min, 
-                            s_max = s_max,
-                            rho = rho,
-                            )
+        noise_schedule = partial(
+            diffusion.noise_schedule,
+            sigma_data=self.sigma_data,
+            s_min=s_min,
+            s_max=s_max,
+            rho=rho,
+        )
 
         sigma = noise_schedule(1)
         timesteps = torch.linspace(1, 0, n_steps + 1)
@@ -645,7 +678,7 @@ class Protpardelle(nn.Module):
         else:
             assert gt_coords_traj is None
             noise_levels = [to_batch_size(noise_schedule(t)) for t in timesteps]
-            # Assume gt_coords is pre-centered, but recenter it here to be safe.            
+            # Assume gt_coords is pre-centered, but recenter it here to be safe.
             if gt_cond_atom_mask is not None and crop_conditional_sampling:
                 if sidechain_mode == False:
                     bb_seq = (seq_mask * residue_constants.restype_order["G"]).long()
@@ -740,32 +773,62 @@ class Protpardelle(nn.Module):
                 xt.requires_grad = True
 
             # Run denoising network
-            run_mpnn = sidechain_mode and i > begin_mpnn_step 
-            use_mpnn = sidechain_mode and i > begin_mpnn_step 
+            run_mpnn = sidechain_mode and i > begin_mpnn_step
+            use_mpnn = sidechain_mode and i > begin_mpnn_step
 
             ### Settings for deterministic & stochastic samplers
             if not sidechain_mode:
-                if gamma > 0: # backbone stochastic sampler, karras scheme
+                if gamma > 0:  # backbone stochastic sampler, karras scheme
                     sigma_hat = sigma + gamma * sigma
                     sigma_delta = torch.sqrt(sigma_hat**2 - sigma**2)
-                    noiser_xt = xt + utils.expand(sigma_delta, xt) * noise_scale * torch.randn_like(xt).to(xt)
+                    noiser_xt = xt + utils.expand(
+                        sigma_delta, xt
+                    ) * noise_scale * torch.randn_like(xt).to(xt)
                     xt_hat = noiser_xt * utils.expand(seq_mask, noiser_xt)
 
-                    xt_hat *= bb_atom_mask[..., None] 
-                    x0, s_logprobs, x_self_cond, s_self_cond = d_theta(xt_hat, sigma_hat, x_self_cond, s_self_cond, crop_cond_coords, run_mpnn, use_mpnn) 
+                    xt_hat *= bb_atom_mask[..., None]
+                    x0, s_logprobs, x_self_cond, s_self_cond = d_theta(
+                        xt_hat,
+                        sigma_hat,
+                        x_self_cond,
+                        s_self_cond,
+                        crop_cond_coords,
+                        run_mpnn,
+                        use_mpnn,
+                    )
 
-                else: # backbone deterministic sampler, karras scheme
-                    x0, s_logprobs, x_self_cond, s_self_cond = d_theta(xt, sigma, x_self_cond, s_self_cond, crop_cond_coords, run_mpnn, use_mpnn)                    
+                else:  # backbone deterministic sampler, karras scheme
+                    x0, s_logprobs, x_self_cond, s_self_cond = d_theta(
+                        xt,
+                        sigma,
+                        x_self_cond,
+                        s_self_cond,
+                        crop_cond_coords,
+                        run_mpnn,
+                        use_mpnn,
+                    )
 
-            else: # all-atom stochastic & deterministic samplers, Euler-Maruyama scheme
-                x0, s_logprobs, x_self_cond, s_self_cond = d_theta(xt, sigma, x_self_cond, s_self_cond, crop_cond_coords, run_mpnn, use_mpnn)
+            else:  # all-atom stochastic & deterministic samplers, Euler-Maruyama scheme
+                x0, s_logprobs, x_self_cond, s_self_cond = d_theta(
+                    xt,
+                    sigma,
+                    x_self_cond,
+                    s_self_cond,
+                    crop_cond_coords,
+                    run_mpnn,
+                    use_mpnn,
+                )
 
             # Compute additional stuff for guidance
             if crop_conditional_sampling and use_reconstruction_guidance:
                 loss = (x0 - gt_coords).pow(2).sum(-1)
                 loss = loss * gt_cond_atom_mask
                 loss = loss.sum() / gt_cond_atom_mask.sum().clamp(min=1)
-                loss = loss * (sigma[0]**2 + self.sigma_data**2) / (sigma[0]**2 * self.sigma_data**2)
+                loss = (
+                    loss
+                    * (sigma[0] ** 2 + self.sigma_data**2)
+                    / (sigma[0] ** 2 * self.sigma_data**2)
+                )
                 xt.retain_grad()
                 loss.backward()
                 guidance = xt.grad.clone()
@@ -787,59 +850,66 @@ class Protpardelle(nn.Module):
 
             # Structure denoising step
             if not sidechain_mode:  # backbone
-                guidance_in = None 
+                guidance_in = None
                 if (i + 1) / n_steps <= apply_cond_proportion:
                     if use_reconstruction_guidance:
                         bb_atom_mask37 = bb_atom_mask.bool()
-                        guidance_in = (guidance, bb_atom_mask37.float(), (i + 1) / n_steps)
+                        guidance_in = (
+                            guidance,
+                            bb_atom_mask37.float(),
+                            (i + 1) / n_steps,
+                        )
                     elif use_classifier_free_guidance:
                         guidance_in = (uncond_x0, (i + 1) / n_steps)
 
                 if gamma > 0:
                     step_sigma_prev = (
-                    torch.ones(*xt.shape[:-1]).to(xt) * sigma_hat[..., None, None]
-                )
-                    step_sigma_prev *= bb_atom_mask # b, n, 37
+                        torch.ones(*xt.shape[:-1]).to(xt) * sigma_hat[..., None, None]
+                    )
+                    step_sigma_prev *= bb_atom_mask  # b, n, 37
                     step_sigma_next = sigma_next[..., None, None]  # b, 1, 1
-                    new_xt, noisier_x, old_score, sigma_in = ode_step(step_sigma_prev, 
-                                                                      step_sigma_next, 
-                                                                      xt_hat, 
-                                                                      x0, 
-                                                                      guidance_in = guidance_in, 
-                                                                      return_addl = True,
-                                                                      sidechain_mode = False)
-                                                            
+                    new_xt, noisier_x, old_score, sigma_in = ode_step(
+                        step_sigma_prev,
+                        step_sigma_next,
+                        xt_hat,
+                        x0,
+                        guidance_in=guidance_in,
+                        return_addl=True,
+                        sidechain_mode=False,
+                    )
 
                 elif gamma == 0:
                     step_sigma_prev = (
-                    torch.ones(*xt.shape[:-1]).to(xt) * sigma[..., None, None]
-                )
-            
-                    step_sigma_prev *= bb_atom_mask # b, n, 37
+                        torch.ones(*xt.shape[:-1]).to(xt) * sigma[..., None, None]
+                    )
+
+                    step_sigma_prev *= bb_atom_mask  # b, n, 37
                     step_sigma_next = sigma_next[..., None, None]  # b, 1, 1
-                    new_xt, noisier_x, old_score, sigma_in = ode_step(step_sigma_prev, 
-                                                                      step_sigma_next, 
-                                                                      xt, 
-                                                                      x0, 
-                                                                      guidance_in = guidance_in, 
-                                                                      return_addl = True,
-                                                                      sidechain_mode = False)
-                    
+                    new_xt, noisier_x, old_score, sigma_in = ode_step(
+                        step_sigma_prev,
+                        step_sigma_next,
+                        xt,
+                        x0,
+                        guidance_in=guidance_in,
+                        return_addl=True,
+                        sidechain_mode=False,
+                    )
+
                 xt = new_xt
 
-                if i == n_steps - 1 and use_fullmpnn_for_final:                            
+                if i == n_steps - 1 and use_fullmpnn_for_final:
                     s_hat = design_with_fullmpnn(
-                        xt, 
+                        xt,
                         seq_mask,
                         cond_aatype=gt_aatype,
                         cond_seq_mask=gt_cond_seq_mask,
-                        num_seqs = num_seqs,
-                        mpnn_batch_size = mpnn_batch_size,
+                        num_seqs=num_seqs,
+                        mpnn_batch_size=mpnn_batch_size,
                     ).to(x0.device)
 
                 if (i + 1) / n_steps <= apply_cond_proportion:
                     if gt_cond_seq_mask is not None and gt_aatype is not None:
-                        if len(s_hat.shape) == 2: # for steps 0~498
+                        if len(s_hat.shape) == 2:  # for steps 0~498
                             s_hat = (
                                 1 - gt_cond_seq_mask
                             ) * s_hat + gt_cond_seq_mask * gt_aatype
@@ -866,16 +936,16 @@ class Protpardelle(nn.Module):
                 # Resample sequence or design with full ProteinMPNN
                 if i == n_steps - 1 and use_fullmpnn_for_final:
                     s_hat = design_with_fullmpnn(
-                            xt, 
-                            seq_mask,
-                            cond_aatype=None,
-                            cond_seq_mask=None,
-                        ).to(x0.device)
-                    
+                        xt,
+                        seq_mask,
+                        cond_aatype=None,
+                        cond_seq_mask=None,
+                    ).to(x0.device)
+
                 elif anneal_seq_resampling_rate is None or resample_this_step:
                     if run_mpnn and use_fullmpnn:
                         s_hat = design_with_fullmpnn(
-                            xt, 
+                            xt,
                             seq_mask,
                             cond_aatype=gt_aatype,
                             cond_seq_mask=gt_cond_seq_mask,
@@ -894,8 +964,8 @@ class Protpardelle(nn.Module):
                 elif stage2_sampling:
                     if gt_cond_seq_mask is not None and gt_aatype is not None:
                         s_hat = (
-                                1 - gt_cond_seq_mask
-                            ) * s_hat + gt_cond_seq_mask * gt_aatype
+                            1 - gt_cond_seq_mask
+                        ) * s_hat + gt_cond_seq_mask * gt_aatype
                         s_hat = s_hat.long()
 
                 # Set masks for collapsing superposition using new sequence
@@ -930,11 +1000,9 @@ class Protpardelle(nn.Module):
                     step_x0,
                     guidance_in=guidance_in,
                     sidechain_mode=True,
-                    gamma = gamma
+                    gamma=gamma,
                 )
                 xt = step_xt
-
-                
 
             # Replacement guidance if conditioning information provided
             if (i + 1) / n_steps <= apply_cond_proportion:
@@ -942,12 +1010,14 @@ class Protpardelle(nn.Module):
                     if gt_cond_atom_mask is None:
                         xt = gt_coords_traj[i + 1]
                     else:
-                        if use_replacement == True: 
+                        if use_replacement == True:
                             xt = (1 - gt_cond_atom_mask)[
                                 ..., None
-                            ] * xt + gt_cond_atom_mask[..., None] * gt_coords_traj[i + 1]
+                            ] * xt + gt_cond_atom_mask[..., None] * gt_coords_traj[
+                                i + 1
+                            ]
                         else:
-                            xt = xt 
+                            xt = xt
 
             if sidechain_mode:
                 atom73_state_t[mask73] = xt[mask37]

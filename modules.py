@@ -5,6 +5,7 @@ Author: Alex Chu
 
 Neural network modules. Many of these are adapted from open source modules.
 """
+
 from typing import List, Sequence, Optional
 
 from einops import rearrange, reduce, repeat

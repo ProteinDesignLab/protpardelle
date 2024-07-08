@@ -6,6 +6,7 @@ Author: Alex Chu
 Configs and convenience functions for wrapping the model sample() function.
 Utils for forward ODE for likelihoods/encoding.
 """
+
 import argparse
 import time
 from typing import Optional, Tuple

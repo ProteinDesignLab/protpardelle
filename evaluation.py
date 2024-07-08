@@ -5,6 +5,7 @@ Author: Alex Chu
 
 Utils for computing evaluation metrics and scaffolding benchmarks.
 """
+
 import argparse
 import os
 import warnings
@@ -41,11 +42,12 @@ def calculate_seq_identity(seq1, seq2, seq_mask=None):
     else:
         return identity.mean(-1)
 
+
 def design_sequence(
     coords,
     model=None,
     num_seqs=1,
-    mpnn_batch_size=1, #! changed 12/21 ZH
+    mpnn_batch_size=1,  #! changed 12/21 ZH
     disallow_aas=["C"],
     input_aatype=None,
     fixed_positions_idxs=[],
@@ -68,8 +70,7 @@ def design_sequence(
         utils.write_coords_to_pdb(
             coords, pdb_fn, batched=False, aatype=aatype_in, atom_mask=atom_mask
         )
-    
-    
+
     fixed_positions_dict = {}
     if len(fixed_positions_idxs) > 0:
         fixed_positions_dict = {
@@ -80,22 +81,23 @@ def design_sequence(
         designed_seqs = mpnn.run_proteinmpnn(
             model=model,
             pdb_path=pdb_fn,
-            num_seq_per_target=num_seqs, 
-            batch_size = mpnn_batch_size, 
+            num_seq_per_target=num_seqs,
+            batch_size=mpnn_batch_size,
             omit_AAs=disallow_aas,
             fixed_positions_dict_in=fixed_positions_dict,
         )
         # import ipdb; ipdb.set_trace()
     if temp_pdb:
-        try: 
+        try:
             subprocess.getoutput(f"rm {pdb_fn}")
         except Exception as e:
             print("Error occurred:", e)
 
     if num_seqs == 1:
-        designed_seqs = designed_seqs[0] 
-        
+        designed_seqs = designed_seqs[0]
+
     return designed_seqs
+
 
 # def design_sequence(coords, model=None, num_seqs=1, disallow_aas=["C"]):
 #     # Returns list of strs; seqs like 'MKRLLDS', not aatypes

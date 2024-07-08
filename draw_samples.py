@@ -5,8 +5,10 @@ Author: Alex Chu
 
 Entry point for unconditional or simple conditional sampling.
 """
+
 import sys
 import os
+
 current_directory = os.getcwd()
 sys.path.insert(0, current_directory)
 
@@ -106,10 +108,11 @@ class Manager(object):
             "--type", type=str, default="allatom", help="Type of model"
         )
         self.parser.add_argument(
-            "--sampling_configdir", 
-            type=str, 
+            "--sampling_configdir",
+            type=str,
             default="configs/sampling.yml",
-            help="Path to sampling config")
+            help="Path to sampling config",
+        )
         self.parser.add_argument(
             "--perlen", type=int, default=2, help="How many samples per sequence length"
         )
@@ -138,13 +141,17 @@ class Manager(object):
             "--targetdir", type=str, default=".", help="Directory to save results"
         )
         self.parser.add_argument(
-            "--input_pdb", type=str, default="samples/len100_samp1.pdb", required=False, help="PDB file to condition on"
+            "--input_pdb",
+            type=str,
+            default="samples/len100_samp1.pdb",
+            required=False,
+            help="PDB file to condition on",
         )
         self.parser.add_argument(
             "--resample_idxs",
             type=str,
             required=False,
-            default = "20-99",
+            default="20-99",
             help="Indices from PDB file to resample. Zero-indexed, comma-delimited, can use dashes, eg 0,2-5,7",
         )
 
@@ -234,7 +241,6 @@ def main():
     if is_test_run:
         date_string = f"test-{date_string}"
 
-
     # this is only used for the readme, keep s_min and s_max as params instead of struct_noise_schedule
     sampling_kwargs_readme = list(sampling_kwargs.items())
 
@@ -263,7 +269,7 @@ def main():
         model.to(device)
         model.eval()
         model.device = device
-    elif args.type == "backbone_new":        
+    elif args.type == "backbone_new":
         checkpoint = f"{args.model_checkpoint}/backbone_new_training_state.pth"
         cfg_path = f"{args.model_checkpoint}/backbone_new.yml"
         config = utils.load_config(cfg_path)
@@ -286,7 +292,7 @@ def main():
         model.device = device
 
     if config.train.home_dir == "":
-        config.train.home_dir = os.getcwd() #os.path.dirname(os.getcwd())
+        config.train.home_dir = os.getcwd()  # os.path.dirname(os.getcwd())
 
     # Sampling
     with open(save_dir + "/readme.txt", "w") as f:
