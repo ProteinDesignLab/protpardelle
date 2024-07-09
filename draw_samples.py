@@ -267,7 +267,7 @@ def main():
 
     # Load model
     if args.type == "backbone":
-        checkpoint = f"{args.model_checkpoint}/backbone_state_dict.pth"
+        checkpoint = f"{args.model_checkpoint}/backbone_new_state_dict.pth"
         cfg_path = f"{args.configdir}/backbone.yml"
         config = utils.load_config(cfg_path)
         weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
