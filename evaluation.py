@@ -8,6 +8,8 @@ Utils for computing evaluation metrics and scaffolding benchmarks.
 
 import argparse
 import os
+import subprocess
+import uuid
 import warnings
 from typing import Tuple
 
@@ -22,10 +24,9 @@ from core import data
 from core import residue_constants
 from core import utils
 from core import protein_mpnn as mpnn
-import sampling
+import inference
 import modules
-import subprocess
-import uuid
+
 
 
 def mean(x):
@@ -348,8 +349,8 @@ def evaluate_backbone_generation(
     tokenizer=None,
     sample_length_range=(50, 512),
 ):
-    sampling_config = sampling.default_backbone_sampling_config()
-    trimmed_coords, seq_mask = sampling.draw_backbone_samples(
+    sampling_config = inference.default_backbone_sampling_config()
+    trimmed_coords, seq_mask = inference.draw_backbone_samples(
         model,
         n_samples=n_samples,
         sample_length_range=sample_length_range,
@@ -381,8 +382,8 @@ def evaluate_allatom_generation(
     model.load_minimpnn()
     model.eval()
 
-    sampling_config = sampling.default_allatom_sampling_config()
-    ret = sampling.draw_allatom_samples(
+    sampling_config = inference.default_allatom_sampling_config()
+    ret = inference.draw_allatom_samples(
         model,
         n_samples=n_samples,
         two_stage_sampling=two_stage_sampling,

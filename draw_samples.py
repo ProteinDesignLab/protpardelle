@@ -28,7 +28,7 @@ from core import data
 from core import residue_constants
 from core import utils
 import diffusion
-import sampling
+import inference
 import models
 
 
