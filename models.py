@@ -376,15 +376,24 @@ class Protpardelle(nn.Module):
         gt_cond_atom_mask: TensorType["b n a", float] = None,
         gt_aatype: TensorType["b n", int] = None,
         gt_cond_seq_mask: TensorType["b n", float] = None,
-        apply_cond_proportion: float = 1.0,
         n_steps: int = 200,
         step_scale: float = 1.2,
         s_churn: float = 50.0,
         noise_scale: float = 1.0,
         s_t_min: float = 0.01,
         s_t_max: float = 50.0,
-        s_min=0.001,
-        s_max=80,
+        s_min: float = 0.001,
+        s_max: float = 80,
+        rho: int = 7,
+        noise_schedule: Optional[Callable] = None,
+        use_superposition: bool = True,
+        apply_cond_proportion: float = 1.0,
+        stage2_sampling: bool = False,
+        crop_conditional_sampling: bool = True,
+        use_replacement: bool = False,
+        use_reconstruction_guidance: bool = False,
+        use_classifier_free_guidance: bool = False,  # defaults to replacement guidance if these are all false
+        guidance_scale: float = 1.0,
         temperature: float = 1.0,
         top_p: float = 1.0,
         disallow_aas: List[int] = [4, 20],  # cys, unk
@@ -393,20 +402,11 @@ class Protpardelle(nn.Module):
         anneal_seq_resampling_rate: Optional[str] = None,  # linear, cosine
         use_fullmpnn: bool = False,
         use_fullmpnn_for_final: bool = True,
-        use_reconstruction_guidance: bool = False,
-        use_classifier_free_guidance: bool = False,  # defaults to replacement guidance if these are all false
-        guidance_scale: float = 1.0,
-        noise_schedule: Optional[Callable] = None,
+        num_seqs: int = 1,  
+        mpnn_batch_size: int = 1,  
         tqdm_pbar: Optional[Callable] = None,
         return_last: bool = True,
         return_aux: bool = False,
-        use_superposition: bool = True,
-        use_replacement: bool = False,
-        stage2_sampling: bool = False,
-        rho: int = 7,
-        crop_conditional_sampling: bool = True,
-        num_seqs: int = 1,  #! Added 12/26, ZH
-        mpnn_batch_size: int = 1,  #! Added 12/26, ZH
     ):
         """Sampling function for backbone or all-atom diffusion. All arguments are optional.
 
@@ -422,9 +422,9 @@ class Protpardelle(nn.Module):
             gt_cond_atom_mask: mask identifying atoms to apply gt_coords.
             gt_aatype: conditioning information for sequence.
             gt_cond_seq_mask: sequence positions to apply gt_aatype.
-            apply_cond_proportion: the proportion of timesteps to apply the conditioning.
-                e.g. if 0.5, then the first 50% of steps use conditioning, and the last 50%
-                are unconditional.
+            
+            # Arguments for the basic diffusion sampling. (https://github.com/NVlabs/edm)
+
             n_steps: number of denoising steps (ODE discretizations).
             step_scale: scale to apply to the score.
             s_churn: gamma = s_churn / n_steps describes the additional noise to add
@@ -433,6 +433,26 @@ class Protpardelle(nn.Module):
             noise_scale: scale to apply to gamma.
             s_t_min: don't apply s_churn below this noise level.
             s_t_max: don't apply s_churn above this noise level.
+            s_min: minimum noise level for sampling.
+            s_max: maximum noise level for sampling.
+            rho: parameter for the size of ode discretization step along the noise level, high rho focuses on the lower noise levels and low rho focuses on the higher noise levels.
+            noise_schedule: specify the noise level timesteps for sampling.
+
+            # Arguments for superposition scheme
+            use_superposition: whether to use superposition for all-atom sampling.
+            stage2_sampling: whether to use stage 2 sampling. Default is true for all-atom sampling.
+
+            # Arguments for the conditional sampling
+            crop_conditional_sampling: whether to crop-conditional sampling.
+            use_replacement: whether to use replacement guidance.
+            use_reconstruction_guidance: whether to use reconstruction guidance on the conditioning.
+            use_classifier_free_guidance: whether to use classifier-free guidance on the conditioning.
+            guidance_scale: weight for reconstruction/classifier-free guidance.
+            apply_cond_proportion: the proportion of timesteps to apply the conditioning.
+                e.g. if 0.5, then the first 50% of steps use conditioning, and the last 50%
+                are unconditional.
+
+            # Argument for the sequence sampling in all-atom sampling
             temperature: scale to apply to aatype logits.
             top_p: don't tokens which fall outside this proportion of the total probability.
             disallow_aas: don't sample these token indices.
@@ -443,10 +463,10 @@ class Protpardelle(nn.Module):
                 running mini-MPNN. None, 'linear', or 'cosine'
             use_fullmpnn: use "full" ProteinMPNN at each step.
             use_fullmpnn_for_final: use "full" ProteinMPNN at the final step.
-            use_reconstruction_guidance: use reconstruction guidance on the conditioning.
-            use_classifier_free_guidance: use classifier-free guidance on the conditioning.
-            guidance_scale: weight for reconstruction/classifier-free guidance.
-            noise_schedule: specify the noise level timesteps for sampling.
+            num_seqs: number of sequences to sample at the last step, using ProteinMPNN.
+            mpnn_batch_size: batch size for ProteinMPNN.
+
+            # Auxilliary arguments
             tqdm_pbar: progress bar in interactive contexts.
             return_last: return only the sampled structure and sequence.
             return_aux: return a dict of everything associated with the sampling run.

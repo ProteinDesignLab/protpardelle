@@ -98,6 +98,13 @@ class Manager(object):
             default="checkpoints",
             help="Path to denoiser model weights and config",
         )
+
+        self.parser.add_argument(
+            "--model_configdir",
+            type=str,
+            default="configs",
+            help="Path to denoiser model weights and config",
+        )
         self.parser.add_argument(
             "--mpnnpath",
             type=str,
@@ -259,19 +266,9 @@ def main():
         subprocess.run(shlex.split(f"mkdir -p {save_init_dir}"))
 
     # Load model
-    if args.type == "backbone_old":
-        checkpoint = f"{args.model_checkpoint}/backbone_old_state_dict.pth"
-        cfg_path = f"{args.model_checkpoint}/backbone_old.yml"
-        config = utils.load_config(cfg_path)
-        weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
-        model = models.Protpardelle(config, device=device)
-        model.load_state_dict(weights)
-        model.to(device)
-        model.eval()
-        model.device = device
-    elif args.type == "backbone_new":
-        checkpoint = f"{args.model_checkpoint}/backbone_new_training_state.pth"
-        cfg_path = f"{args.model_checkpoint}/backbone_new.yml"
+    if args.type == "backbone":
+        checkpoint = f"{args.model_checkpoint}/backbone_state_dict.pth"
+        cfg_path = f"{args.configdir}/backbone.yml"
         config = utils.load_config(cfg_path)
         weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
         model = models.Protpardelle(config, device=device)
@@ -281,7 +278,7 @@ def main():
         model.device = device
     elif args.type == "allatom":
         checkpoint = f"{args.model_checkpoint}/allatom_state_dict.pth"
-        cfg_path = f"{args.model_checkpoint}/allatom_pretrained.yml"
+        cfg_path = f"{args.configdir}/allatom.yml"
         config = utils.load_config(cfg_path)
         weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
         model = models.Protpardelle(config, device=device)
@@ -292,7 +289,7 @@ def main():
         model.device = device
 
     if config.train.home_dir == "":
-        config.train.home_dir = os.getcwd()  # os.path.dirname(os.getcwd())
+        config.train.home_dir = os.getcwd() 
 
     # Sampling
     with open(save_dir + "/readme.txt", "w") as f:

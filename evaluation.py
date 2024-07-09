@@ -47,7 +47,7 @@ def design_sequence(
     coords,
     model=None,
     num_seqs=1,
-    mpnn_batch_size=1,  #! changed 12/21 ZH
+    mpnn_batch_size=1,  
     disallow_aas=["C"],
     input_aatype=None,
     fixed_positions_idxs=[],
@@ -86,7 +86,7 @@ def design_sequence(
             omit_AAs=disallow_aas,
             fixed_positions_dict_in=fixed_positions_dict,
         )
-        # import ipdb; ipdb.set_trace()
+        
     if temp_pdb:
         try:
             subprocess.getoutput(f"rm {pdb_fn}")
@@ -97,33 +97,6 @@ def design_sequence(
         designed_seqs = designed_seqs[0]
 
     return designed_seqs
-
-
-# def design_sequence(coords, model=None, num_seqs=1, disallow_aas=["C"]):
-#     # Returns list of strs; seqs like 'MKRLLDS', not aatypes
-#     if model is None:
-#         model = mpnn.get_mpnn_model()
-#     if isinstance(coords, str):
-#         temp_pdb = False
-#         pdb_fn = coords
-#     else:
-#         temp_pdb = True
-#         pdb_fn = f"tmp{np.random.randint(0, 1e8)}.pdb"
-#         gly_idx = residue_constants.restype_order["G"]
-#         gly_aatype = (torch.ones(coords.shape[0]) * gly_idx).long()
-#         utils.write_coords_to_pdb(coords, pdb_fn, batched=False, aatype=gly_aatype)
-
-#     with torch.no_grad():
-#         designed_seqs = mpnn.run_proteinmpnn(
-#             model=model,
-#             pdb_path=pdb_fn,
-#             num_seq_per_target=num_seqs,
-#             omit_AAs=disallow_aas,
-#         )
-
-#     if temp_pdb:
-#         os.system("rm " + pdb_fn)
-#     return designed_seqs
 
 
 def get_esmfold_model(device=None):
