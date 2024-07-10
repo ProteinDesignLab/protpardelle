@@ -39,7 +39,7 @@ def draw_and_save_samples(
         for l in lengths:
             prot_lens = torch.ones(samples_per_len).long() * l
             seq_mask = model.make_seq_mask_for_sampling(prot_lens=prot_lens)
-            aux = sampling.draw_backbone_samples(
+            aux = inference.draw_backbone_samples(
                 model,
                 seq_mask=seq_mask,
                 pdb_save_path=f"{save_dir}/len{format(l, '03d')}_samp",
@@ -55,7 +55,7 @@ def draw_and_save_samples(
         for l in lengths:
             prot_lens = torch.ones(samples_per_len).long() * l
             seq_mask = model.make_seq_mask_for_sampling(prot_lens=prot_lens)
-            aux = sampling.draw_allatom_samples(
+            aux = inference.draw_allatom_samples(
                 model,
                 seq_mask=seq_mask,
                 pdb_save_path=f"{save_dir}/len{format(l, '03d')}",
@@ -181,9 +181,9 @@ def main():
 
     # setting default sampling config
     if args.type == "backbone":
-        sampling_config = sampling.default_backbone_sampling_config()
+        sampling_config = inference.default_backbone_sampling_config()
     elif args.type == "allatom":
-        sampling_config = sampling.default_allatom_sampling_config()
+        sampling_config = inference.default_allatom_sampling_config()
 
     sampling_kwargs = vars(sampling_config)
 
