@@ -420,13 +420,11 @@ BondAngle = collections.namedtuple(
 
 
 @functools.lru_cache(maxsize=None)
-def load_stereo_chemical_props() -> (
-    Tuple[
-        Mapping[str, List[Bond]],
-        Mapping[str, List[Bond]],
-        Mapping[str, List[BondAngle]],
-    ]
-):
+def load_stereo_chemical_props() -> Tuple[
+    Mapping[str, List[Bond]],
+    Mapping[str, List[Bond]],
+    Mapping[str, List[BondAngle]],
+]:
     """Load stereo_chemical_props.txt into a nice structure.
 
     Load literature values for bond lengths and bond angles and translate
@@ -793,13 +791,13 @@ resname_to_idx = {resname: i for i, resname in enumerate(resnames)}
 
 
 # Define exploded all-atom representation (atom73)
-atom73_names = ['N', 'CA', 'C', 'CB', 'O']
+atom73_names = ["N", "CA", "C", "CB", "O"]
 for aa1 in restypes:
     aa3 = restype_1to3[aa1]
     atom_list = residue_atoms[aa3]
     for atom in atom_types:
         if atom in atom_list and atom not in atom73_names:
-            atom73_names.append(f'{aa1}{atom}')
+            atom73_names.append(f"{aa1}{atom}")
 
 atom73_names_to_idx = {a: i for i, a in enumerate(atom73_names)}
 
@@ -807,7 +805,7 @@ restype_atom73_mask = np.zeros((22, 73))
 for i, restype in enumerate(restypes):
     for atom_name in atom_types:
         atom73_name = atom_name
-        if atom_name not in ['N', 'CA', 'C', 'CB', 'O']:
+        if atom_name not in ["N", "CA", "C", "CB", "O"]:
             atom73_name = restype + atom_name
         if atom73_name in atom73_names_to_idx:
             atom73_idx = atom73_names_to_idx[atom73_name]

@@ -27,6 +27,7 @@ data:
     n_aatype_tokens: 21
     se3_data_augment: True
     sigma_data: 10.0
+    rotation_mode: "quaternion"
 
 diffusion:
     training:

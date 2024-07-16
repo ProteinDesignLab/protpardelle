@@ -79,8 +79,8 @@ def get_mpnn_model(model_name='v_48_020', path_to_model_weights='', ca_only=Fals
     return model
 
 
-def run_proteinmpnn(model=None, pdb_path='', pdb_path_chains='', path_to_model_weights='', model_name='v_48_020', seed=0, ca_only=False, out_folder='', num_seq_per_target=1, batch_size=1, sampling_temps=[0.1], backbone_noise=0.0, max_length=200000, omit_AAs=[], print_all=False,
-    chain_id_jsonl='', fixed_positions_jsonl='', pssm_jsonl='', omit_AA_jsonl='', bias_AA_jsonl='', tied_positions_jsonl='', bias_by_res_jsonl='', jsonl_path='',
+def run_proteinmpnn(model=None, pdb_path='', pdb_path_chains='', path_to_model_weights='', model_name='v_48_020', seed=0, ca_only=False, out_folder='', num_seq_per_target=1, batch_size=8, sampling_temps=[0.1], backbone_noise=0.0, max_length=200000, omit_AAs=[], print_all=False,
+    chain_id_jsonl='', fixed_positions_dict_in={}, fixed_positions_jsonl='', pssm_jsonl='', omit_AA_jsonl='', bias_AA_jsonl='', tied_positions_jsonl='', bias_by_res_jsonl='', jsonl_path='',
     pssm_threshold=0.0, pssm_multi=0.0, pssm_log_odds_flag=False, pssm_bias_flag=False, write_output_files=False):
     
     if model is None:
@@ -121,6 +121,10 @@ def run_proteinmpnn(model=None, pdb_path='', pdb_path_chains='', path_to_model_w
             json_list = list(json_file)
         for json_str in json_list:
             fixed_positions_dict = json.loads(json_str)
+    elif len(fixed_positions_dict_in) > 0:
+        # Formatted like: {"5TTA": {"A": [1, 2, 3, 7, 8, 9, 22, 25, 33], "B": []}, "3LIS": {"A": [], "B": []}}
+        # https://github.com/dauparas/ProteinMPNN/blob/main/helper_scripts/make_fixed_positions_dict.py
+        fixed_positions_dict = fixed_positions_dict_in
     else:
         if print_all:
             print(40*'-')
@@ -446,6 +450,9 @@ def run_proteinmpnn(model=None, pdb_path='', pdb_path_chains='', path_to_model_w
                 t1 = time.time()
                 dt = round(float(t1-t0), 4)
                 num_seqs = len(temperatures)*NUM_BATCHES*BATCH_COPIES
+                #^ num_batches = num_seq_per_target//batch_size
+                #^ BATCH_COPIES = batch_size
+                
                 total_length = X.shape[1]
                 if print_all:
                     print(f'{num_seqs} sequences of length {total_length} generated in {dt} seconds')
