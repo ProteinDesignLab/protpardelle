@@ -84,7 +84,8 @@ To draw 8 samples per length for lengths in `range(70, 150, 5)` from the backbon
 
 We have also added the ability to provide an input PDB file and a list of (zero-indexed) indices to condition on from the PDB file. Note also that current models are single-chain only, so multi-chain PDBs will be treated as single chains (we intend to release multi-chain models in a later update). We can expect it to do better or worse depending on the problem (better on easier problems such as inpainting, worse on difficult problems such as discontiguous scaffolding). Use this command to resample the first 25 and 71st to 80th residues of `my_pdb.pdb`. The rest of residues are regarded as "motif" and the residues that will be redesigned are regarded as "scaffold".
 
-`python draw_samples.py --type backbone --sampling_configdir configs/cond_sampling.yml --input_pdb my_pdb.pdb --cond_num_samples 2 --resample_idxs 0-25,71-80`
+`python draw_samples.py --type backbone --sampling_configdir configs/cond_sampling.yml --input_pdb my_pdb.pdb --cond_num_samples 2 --resample_idxs 0-25,71-80`  
+
 `python draw_samples.py --type allatom --sampling_configdir configs/cond_sampling.yml --input_pdb my_pdb.pdb --cond_num_samples 2 --resample_idxs 0-25,71-80`
 
 Here, the length of my_pdb is 118 and thus residues 26-70 and 81-117 (zero-indexed) are motif and the resampled residues are scaffold. When doing motif scaffolding, the length of the generated protein will be the same as the original PDB file and you have to set --input_pdb, --cond_num_samples, --resample_idxs arguments.
