@@ -1,7 +1,7 @@
 """
 https://github.com/ProteinDesignLab/protpardelle
 License: MIT
-Author: Alex Chu and Jinho Kim
+Author: Alex Chu & Jinho Kim
 
 Entry point for unconditional or simple conditional sampling.
 """

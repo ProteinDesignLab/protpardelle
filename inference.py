@@ -1,7 +1,7 @@
 """
 https://github.com/ProteinDesignLab/protpardelle
 License: MIT
-Author: Alex Chu
+Author: Alex Chu & Jinho Kim
 
 Configs and convenience functions for wrapping the model sample() function.
 Utils for forward ODE for likelihoods/encoding.
