@@ -723,11 +723,6 @@ class Protpardelle(nn.Module):
             ]
             xt = gt_coords_traj[0]
 
-        #* commented out to fix bugs
-        # gt_atom_mask = None
-        # if gt_aatype is not None:
-        #     gt_atom_mask = utils.atom37_mask_from_aatype(gt_aatype, seq_mask)
-
         fake_logits = repeat(seq_mask, "b n -> b n t", t=self.n_tokens)
         s_hat = (sample_aatype(fake_logits) * seq_mask).long()
 

@@ -41,16 +41,16 @@ def draw_and_save_samples(
     **sampling_kwargs,
 ):
     device = model.device
-    motif_scaffolding = sampling_kwargs['motif_scaffolding'] #* 241101 bug fixed
+    motif_scaffolding = sampling_kwargs['motif_scaffolding'] 
     if "backbone" in mode:
         total_sampling_time = 0
         for l in lengths:
             prot_lens = torch.ones(samples_per_len).long() * l
             seq_mask = model.make_seq_mask_for_sampling(prot_lens=prot_lens)
             if not motif_scaffolding:
-                pdb_save_path = f"{save_dir}/backbone_uncond_len{format(l, '03d')}_samp" #* 241101 changed
+                pdb_save_path = f"{save_dir}/backbone_uncond_len{format(l, '03d')}_samp" 
             else:
-                pdb_save_path = f"{save_dir}/backbone_motif_scaff_len{format(l, '03d')}_samp" #* 241101 changed
+                pdb_save_path = f"{save_dir}/backbone_motif_scaff_len{format(l, '03d')}_samp" 
             aux = inference.draw_backbone_samples(
                 model,
                 seq_mask=seq_mask,
@@ -68,9 +68,9 @@ def draw_and_save_samples(
             prot_lens = torch.ones(samples_per_len).long() * l                        
             seq_mask = model.make_seq_mask_for_sampling(prot_lens=prot_lens)          
             if not motif_scaffolding:
-                pdb_save_path = f"{save_dir}/allatom_uncond_len{format(l, '03d')}" #* 241101 changed
+                pdb_save_path = f"{save_dir}/allatom_uncond_len{format(l, '03d')}" 
             else:
-                pdb_save_path = f"{save_dir}/allatom_motif_scaff_len{format(l, '03d')}" #* 241101 changed
+                pdb_save_path = f"{save_dir}/allatom_motif_scaff_len{format(l, '03d')}" 
             aux = inference.draw_allatom_samples(
                 model,
                 seq_mask=seq_mask,
@@ -124,7 +124,7 @@ class Manager(object):
         self.parser.add_argument(
             "--sampling_configdir",
             type=str,
-            default="configs/uncond_sampling.yml", #* 241101 bug fixed
+            default="configs/uncond_sampling.yml", 
             help="Path to sampling config",
         )
         self.parser.add_argument(
@@ -158,12 +158,12 @@ class Manager(object):
             "--motif_scaffolding",
             type=bool,
             default=False,
-            help="whether to use motif scaffolding generation", #* 241101 bug fixed
+            help="whether to use motif scaffolding generation", 
         )   
         self.parser.add_argument(
             "--input_pdb",
             type=str,
-            default=None, #* 241101 bug fixed
+            default=None, 
             required=False,
             help="PDB file to condition on",
         )
@@ -172,13 +172,13 @@ class Manager(object):
             type=int,
             default=None,
             required=False,
-            help="number of samples for conditional generation", #* 241101 bug fixed
+            help="number of samples for conditional generation", 
         )                
         self.parser.add_argument(
             "--resample_idxs",
             type=str,
             required=False,
-            default=None, #* 241101 bug fixed
+            default=None, 
             help="Indices from PDB file to resample. Zero-indexed, comma-delimited, can use dashes, eg 0,2-5,7",
         )
         
@@ -214,13 +214,12 @@ def main():
     is_test_run = False
     seed = 0
     
-    #* 241101 bug fixed
-    if not args.motif_scaffolding: #* unconditional sampling
+    if not args.motif_scaffolding: # unconditional sampling
         samples_per_len = args.perlen
         min_len = args.minlen
         max_len = args.maxlen
         len_step_size = args.steplen
-    else:  #* conditional sampling
+    else:  # conditional sampling
         samples_per_len = args.cond_num_samples
     
     device = "cuda:0"
