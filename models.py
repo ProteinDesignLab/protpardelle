@@ -1,7 +1,7 @@
 """
 https://github.com/ProteinDesignLab/protpardelle
 License: MIT
-Author: Alex Chu
+Author: Alex Chu & Jinho Kim
 
 Top-level model definitions.
 Typically these are initialized with config rather than arguments.
@@ -389,11 +389,12 @@ class Protpardelle(nn.Module):
         use_superposition: bool = True,
         apply_cond_proportion: float = 1.0,
         stage2_sampling: bool = False,
-        crop_conditional_sampling: bool = True,
+        motif_scaffolding: bool = False,
         use_replacement: bool = False,
         use_reconstruction_guidance: bool = False,
         use_classifier_free_guidance: bool = False,  # defaults to replacement guidance if these are all false
         guidance_scale: float = 1.0,
+        anneal_guidance_scale: bool = False,
         temperature: float = 1.0,
         top_p: float = 1.0,
         disallow_aas: List[int] = [4, 20],  # cys, unk
@@ -443,7 +444,7 @@ class Protpardelle(nn.Module):
             stage2_sampling: whether to use stage 2 sampling. Default is true for all-atom sampling.
 
             # Arguments for the conditional sampling
-            crop_conditional_sampling: whether to crop-conditional sampling.
+            motif_scaffolding: whether to do motif-scaffolding.
             use_replacement: whether to use replacement guidance.
             use_reconstruction_guidance: whether to use reconstruction guidance on the conditioning.
             use_classifier_free_guidance: whether to use classifier-free guidance on the conditioning.
@@ -451,6 +452,7 @@ class Protpardelle(nn.Module):
             apply_cond_proportion: the proportion of timesteps to apply the conditioning.
                 e.g. if 0.5, then the first 50% of steps use conditioning, and the last 50%
                 are unconditional.
+            anneal_guidance_scale: whether to anneal the guidance scale. But deprecated for now.
 
             # Argument for the sequence sampling in all-atom sampling
             temperature: scale to apply to aatype logits.
@@ -699,7 +701,7 @@ class Protpardelle(nn.Module):
             assert gt_coords_traj is None
             noise_levels = [to_batch_size(noise_schedule(t)) for t in timesteps]
             # Assume gt_coords is pre-centered, but recenter it here to be safe.
-            if gt_cond_atom_mask is not None and crop_conditional_sampling:
+            if gt_cond_atom_mask is not None and motif_scaffolding:
                 if sidechain_mode == False:
                     bb_seq = (seq_mask * residue_constants.restype_order["G"]).long()
                     bb_atom_mask = utils.atom37_mask_from_aatype(bb_seq, seq_mask)
@@ -720,10 +722,6 @@ class Protpardelle(nn.Module):
                 diffusion.noise_coords(gt_coords, nl) for nl in noise_levels
             ]
             xt = gt_coords_traj[0]
-
-        gt_atom_mask = None
-        if gt_aatype is not None:
-            gt_atom_mask = utils.atom37_mask_from_aatype(gt_aatype, seq_mask)
 
         fake_logits = repeat(seq_mask, "b n -> b n t", t=self.n_tokens)
         s_hat = (sample_aatype(fake_logits) * seq_mask).long()
@@ -840,7 +838,7 @@ class Protpardelle(nn.Module):
                 )
 
             # Compute additional stuff for guidance
-            if crop_conditional_sampling and use_reconstruction_guidance:
+            if motif_scaffolding and use_reconstruction_guidance:
                 loss = (x0 - gt_coords).pow(2).sum(-1)
                 loss = loss * gt_cond_atom_mask
                 loss = loss.sum() / gt_cond_atom_mask.sum().clamp(min=1)
@@ -1025,7 +1023,7 @@ class Protpardelle(nn.Module):
                 xt = step_xt
 
             # Replacement guidance if conditioning information provided
-            if (i + 1) / n_steps <= apply_cond_proportion:
+            if (i + 1) / n_steps <= apply_cond_proportion and not stage2_sampling:
                 if gt_coords_traj is not None:
                     if gt_cond_atom_mask is None:
                         xt = gt_coords_traj[i + 1]
@@ -1038,6 +1036,10 @@ class Protpardelle(nn.Module):
                             ]
                         else:
                             xt = xt
+            # For stage 2 sampling
+            elif stage2_sampling: 
+                xt = (1 - gt_cond_atom_mask)[..., None] * xt + gt_cond_atom_mask[..., None] * gt_coords_traj[i + 1]
+
 
             if sidechain_mode:
                 atom73_state_t[mask73] = xt[mask37]

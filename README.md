@@ -63,21 +63,32 @@ To use the backbone only model use:
 protpardelle_uncond 50,60,5,1,backbone
 ```
 
-## Inference
+## Inference 
+
+### 24/11/11 updated
+- We additionally updated the motif scaffolding code and the configurations.
+
+### Unconditional Generation
 
 The entry point for sampling is `draw_samples.py`, which is a convenience wrapper around `sampling.py` and the `model.sample()` function. There are a number of arguments which can be passed to control the model checkpoints, the sampling configuration, and lengths of the proteins sampled. Model weights are provided for both the backbone-only and all-atom versions of Protpardelle. Both of these are trained unconditionally; we will release conditional models in a later update. Below are some examples of how to draw samples.
 
 The default command used to draw all-atom samples (for example, for 2 proteins at each length in `range(80, 100, 5)`):
 
-`python draw_samples.py --type allatom --minlen 80 --maxlen 100 --steplen 5 --perlen 2`
+`python draw_samples.py --type allatom --minlen 80 --maxlen 100 --steplen 5 --perlen 2 --sampling_configdir configs/uncond_sampling.yml`
 
 To draw 8 samples per length for lengths in `range(70, 150, 5)` from the backbone-only model, with 100 denoising steps instead of the default, run this command. (This is illustrative; I would not expect to get quality samples with 100 denoising steps.)
 
-`python draw_samples.py --type backbone --param n_steps --paramval 100 --minlen 70 --maxlen 150 --steplen 5 --perlen 8`
+`python draw_samples.py --type backbone --param n_steps --paramval 100 --minlen 70 --maxlen 150 --steplen 5 --perlen 8 --sampling_configdir configs/uncond_sampling.yml`
 
-We have also added the ability to provide an input PDB file and a list of (zero-indexed) indices to condition on from the PDB file. Note also that current models are single-chain only, so multi-chain PDBs will be treated as single chains (we intend to release multi-chain models in a later update). We can expect it to do better or worse depending on the problem (better on easier problems such as inpainting, worse on difficult problems such as discontiguous scaffolding). Use this command to resample the first 25 and 71st to 80th residues of `my_pdb.pdb`.
+### Motif Scaffolding
 
-`python draw_samples.py --input_pdb my_pdb.pdb --resample_idxs 0-25,70-80`
+We have also added the ability to provide an input PDB file and a list of (zero-indexed) indices to condition on from the PDB file. Note also that current models are single-chain only, so multi-chain PDBs will be treated as single chains (we intend to release multi-chain models in a later update). We can expect it to do better or worse depending on the problem (better on easier problems such as inpainting, worse on difficult problems such as discontiguous scaffolding). Use this command to resample the first 25 and 71st to 80th residues of `example.pdb`. The rest of residues are regarded as "motif" and the residues that will be redesigned are regarded as "scaffold".
+
+`python draw_samples.py --type backbone --sampling_configdir configs/cond_sampling.yml --input_pdb example.pdb --cond_num_samples 2 --resample_idxs 0-25,71-80`  
+
+`python draw_samples.py --type allatom --sampling_configdir configs/cond_sampling.yml --input_pdb example.pdb --cond_num_samples 2 --resample_idxs 0-25,71-80`
+
+Here, the length of example.pdb is 118 and thus residues 26-70 and 81-117 (zero-indexed) are motif and the resampled residues are scaffold. When doing motif scaffolding, the length of the generated protein will be the same as the original PDB file and you have to set --input_pdb, --cond_num_samples, --resample_idxs arguments.
 
 For more control over the sampling process, including tweaking the sampling hyperparameters and more specific methods of conditioning, you can directly interface with the `model.sample()` function; we have provided examples of how to configure and run these commands in `sampling.py`.
 

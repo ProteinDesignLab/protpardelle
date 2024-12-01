@@ -1,0 +1,55 @@
+backbone:
+  n_steps: 500
+  s_churn: 200
+  step_scale: 1.1
+  sidechain_mode: false
+  noise_schedule:
+    function: "uniform"
+    s_max: 80
+    s_min: 0.001
+    rho: 5
+  use_fullmpnn_for_final: false  
+  # conditional sampling parameters
+  motif_scaffolding: True
+  apply_cond_proportion: 1.0
+  use_replacement: True
+  use_reconstruction_guidance: True
+  guidance_scale: 0.1
+
+allatom:
+  n_steps: 500
+  s_churn: 200
+  step_scale: 1.2
+  sidechain_mode: true
+  skip_mpnn_proportion: 0.6
+  use_fullmpnn: false
+  use_fullmpnn_for_final: true
+  anneal_seq_resampling_rate: "linear"
+  use_superposition: true
+  stage2_sampling: false
+  noise_schedule:
+    function: "uniform"
+    s_max: 80
+    s_min: 0.001
+    rho: 7
+  # conditional sampling parameters
+  motif_scaffolding: True
+  apply_cond_proportion: 1.0
+  use_replacement: True
+  use_reconstruction_guidance: True
+  guidance_scale: 0.1
+
+  stage_2:
+    stage2_sampling: true
+    apply_cond_proportion: 1.0
+    n_steps: 200
+    s_churn: 100
+    step_scale: 1.0
+    sidechain_mode: true
+    skip_mpnn_proportion: 1.0
+    noise_schedule:
+      function: "uniform"
+      s_max: 80
+      s_min: 0.001
+      rho: 7
+

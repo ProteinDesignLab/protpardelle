@@ -1,7 +1,7 @@
 """
 https://github.com/ProteinDesignLab/protpardelle
 License: MIT
-Author: Alex Chu
+Author: Alex Chu & Jinho Kim
 
 Entry point for unconditional or simple conditional sampling.
 """
@@ -41,15 +41,20 @@ def draw_and_save_samples(
     **sampling_kwargs,
 ):
     device = model.device
+    motif_scaffolding = sampling_kwargs['motif_scaffolding'] 
     if "backbone" in mode:
         total_sampling_time = 0
         for l in lengths:
             prot_lens = torch.ones(samples_per_len).long() * l
             seq_mask = model.make_seq_mask_for_sampling(prot_lens=prot_lens)
+            if not motif_scaffolding:
+                pdb_save_path = f"{save_dir}/backbone_uncond_len{format(l, '03d')}_samp" 
+            else:
+                pdb_save_path = f"{save_dir}/backbone_motif_scaff_len{format(l, '03d')}_samp" 
             aux = inference.draw_backbone_samples(
                 model,
                 seq_mask=seq_mask,
-                pdb_save_path=f"{save_dir}/len{format(l, '03d')}_samp",
+                pdb_save_path=pdb_save_path,
                 return_aux=True,
                 return_sampling_runtime=True,
                 **sampling_kwargs,
@@ -60,12 +65,16 @@ def draw_and_save_samples(
     elif "allatom" in mode:
         total_sampling_time = 0
         for l in lengths:
-            prot_lens = torch.ones(samples_per_len).long() * l
-            seq_mask = model.make_seq_mask_for_sampling(prot_lens=prot_lens)
+            prot_lens = torch.ones(samples_per_len).long() * l                        
+            seq_mask = model.make_seq_mask_for_sampling(prot_lens=prot_lens)          
+            if not motif_scaffolding:
+                pdb_save_path = f"{save_dir}/allatom_uncond_len{format(l, '03d')}" 
+            else:
+                pdb_save_path = f"{save_dir}/allatom_motif_scaff_len{format(l, '03d')}" 
             aux = inference.draw_allatom_samples(
                 model,
                 seq_mask=seq_mask,
-                pdb_save_path=f"{save_dir}/len{format(l, '03d')}",
+                pdb_save_path=pdb_save_path,
                 return_aux=True,
                 **sampling_kwargs,
             )
@@ -91,14 +100,12 @@ class Manager(object):
         self.parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter
         )
-
         self.parser.add_argument(
             "--model_checkpoint",
             type=str,
             default="checkpoints",
             help="Path to denoiser model weights and config",
         )
-
         self.parser.add_argument(
             "--model_configdir",
             type=str,
@@ -117,7 +124,7 @@ class Manager(object):
         self.parser.add_argument(
             "--sampling_configdir",
             type=str,
-            default="configs/sampling.yml",
+            default="configs/uncond_sampling.yml", 
             help="Path to sampling config",
         )
         self.parser.add_argument(
@@ -143,31 +150,57 @@ class Manager(object):
             type=int,
             required=False,
             help="If steplen not provided, how many random lengths to sample at",
-        )
+        )        
         self.parser.add_argument(
             "--targetdir", type=str, default=".", help="Directory to save results"
         )
         self.parser.add_argument(
+            "--motif_scaffolding",
+            type=bool,
+            default=False,
+            help="whether to use motif scaffolding generation", 
+        )   
+        self.parser.add_argument(
             "--input_pdb",
             type=str,
-            default="samples/len100_samp1.pdb",
+            default=None, 
             required=False,
             help="PDB file to condition on",
         )
         self.parser.add_argument(
+            "--cond_num_samples",
+            type=int,
+            default=None,
+            required=False,
+            help="number of samples for conditional generation", 
+        )                
+        self.parser.add_argument(
             "--resample_idxs",
             type=str,
             required=False,
-            default="20-99",
+            default=None, 
             help="Indices from PDB file to resample. Zero-indexed, comma-delimited, can use dashes, eg 0,2-5,7",
         )
+        
 
     def add_argument(self, *args, **kwargs):
         self.parser.add_argument(*args, **kwargs)
 
     def parse_args(self):
         self.args = self.parser.parse_args()
-
+        if self.args.motif_scaffolding:
+            missing = []
+            if not self.args.input_pdb:
+                missing.append('--input_pdb')
+            if self.args.cond_num_samples is None:
+                missing.append('--cond_num_samples')
+            if not self.args.resample_idxs:
+                missing.append('--resample_idxs')
+            if missing:
+                self.parser.error(
+                    f"When --motif_scaffolding is set, the following arguments are required: {', '.join(missing)}"
+                )
+        
         return self.args
 
 
@@ -180,10 +213,15 @@ def main():
     print(args)
     is_test_run = False
     seed = 0
-    samples_per_len = args.perlen
-    min_len = args.minlen
-    max_len = args.maxlen
-    len_step_size = args.steplen
+    
+    if not args.motif_scaffolding: # unconditional sampling
+        samples_per_len = args.perlen
+        min_len = args.minlen
+        max_len = args.maxlen
+        len_step_size = args.steplen
+    else:  # conditional sampling
+        samples_per_len = args.cond_num_samples
+    
     device = "cuda:0"
 
     # setting default sampling config
@@ -228,7 +266,7 @@ def main():
         sampling_kwargs.update(cond_kwargs)
 
     # Determine lengths to sample at
-    if min_len is not None and max_len is not None:
+    if min_len is not None and max_len is not None and input_pdb_len is None:
         if len_step_size is not None:
             sampling_lengths = range(min_len, max_len, len_step_size)
         else:
@@ -267,8 +305,8 @@ def main():
 
     # Load model
     if args.type == "backbone":
-        checkpoint = f"{args.model_checkpoint}/backbone_new_state_dict.pth"
-        cfg_path = f"{args.configdir}/backbone.yml"
+        checkpoint = f"{args.model_checkpoint}/backbone_new_training_state.pth"
+        cfg_path = f"{args.model_configdir}/backbone.yml"
         config = utils.load_config(cfg_path)
         weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
         model = models.Protpardelle(config, device=device)
@@ -278,7 +316,7 @@ def main():
         model.device = device
     elif args.type == "allatom":
         checkpoint = f"{args.model_checkpoint}/allatom_state_dict.pth"
-        cfg_path = f"{args.configdir}/allatom.yml"
+        cfg_path = f"{args.model_configdir}/allatom.yml"
         config = utils.load_config(cfg_path)
         weights = torch.load(checkpoint, map_location=device)["model_state_dict"]
         model = models.Protpardelle(config, device=device)
