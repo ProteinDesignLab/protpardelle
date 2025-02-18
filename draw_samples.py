@@ -245,9 +245,7 @@ def main():
         else:
             resample_idxs = list(range(input_pdb_len))
         cond_idxs = [i for i in range(input_pdb_len) if i not in resample_idxs]
-        to_batch_size = lambda x: repeat(x, "... -> b ...", b=samples_per_len).to(
-            device
-        )
+        to_batch_size = lambda x: repeat(x, "... -> b ...", b=samples_per_len)
 
         # For unconditional model, center coords on whole structure
         centered_coords = data.apply_random_se3(
