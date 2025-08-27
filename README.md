@@ -1,9 +1,13 @@
 # protpardelle
 
+> ⚠️ **Deprecated**  
+> As of August 26, 2025, this repository is no longer maintained.  
+> Please use the updated [Protpardelle-1c](https://github.com/ProteinDesignLab/protpardelle-1c/).
+
+
 Code for the paper: [An all-atom protein generative model](https://www.biorxiv.org/content/10.1101/2023.05.24.542194v1.full).
 
-The code is under active development and we welcome contributions, feature requests, issues, corrections, and any questions! Where we have used or adapted code from others we have tried to give proper attribution, but please let us know if anything should be corrected.
-
+Where we have used or adapted code from others we have tried to give proper attribution, but please let us know if anything should be corrected.
 
 ![twitter_movie3](https://github.com/ProteinDesignLab/protpardelle/assets/16140426/98ed76c4-114b-4fa7-ae8a-e661082c8cdf)
 
